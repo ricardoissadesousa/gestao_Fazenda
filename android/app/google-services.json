@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "564100632903",
+    "project_id": "gestao-de-fazendas",
+    "storage_bucket": "gestao-de-fazendas.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:564100632903:android:a9bab339f30585c667fc62",
+        "android_client_info": {
+          "package_name": "com.example.farmmanagement"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCX_5JFK6ZRXvuxRxkvbNoMtx1QlVy5NSE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
