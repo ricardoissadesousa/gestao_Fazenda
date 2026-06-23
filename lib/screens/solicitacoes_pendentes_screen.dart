@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../core/app_theme.dart';
 import '../data/models/solicitacao.dart';
 import '../data/services/folga_service.dart';
+import '../data/services/notificacao_service.dart';
 import '../widgets/solicitacao_card.dart';
 
 class SolicitacoesPendentesScreen extends StatefulWidget {
@@ -13,6 +15,7 @@ class SolicitacoesPendentesScreen extends StatefulWidget {
 
 class _SolicitacoesPendentesScreenState extends State<SolicitacoesPendentesScreen> {
   final _folgaService = FolgaService();
+  final _notificacaoService = NotificacaoService();
   List<Solicitacao> _solicitacoes = [];
   bool _loading = true;
 
@@ -20,6 +23,15 @@ class _SolicitacoesPendentesScreenState extends State<SolicitacoesPendentesScree
   void initState() {
     super.initState();
     _carregarSolicitacoes();
+    _marcarNotificacoesComoLidas();
+  }
+
+  /// Marca todas as notificações do gestor como lidas ao abrir a tela
+  Future<void> _marcarNotificacoesComoLidas() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) {
+      await _notificacaoService.marcarTodasComoLidas(uid);
+    }
   }
 
   Future<void> _carregarSolicitacoes() async {

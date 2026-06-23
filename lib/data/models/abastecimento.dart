@@ -9,6 +9,7 @@ class Abastecimento {
   final double horimetro;
   final String aplicacao;
   final String? usuarioUid;
+  final String? fotoComprovante; // Base64 da foto do comprovante
 
   Abastecimento({
     this.id = '',
@@ -19,6 +20,7 @@ class Abastecimento {
     this.horimetro = 0.0,
     this.aplicacao = '',
     this.usuarioUid,
+    this.fotoComprovante,
   });
 
   factory Abastecimento.fromFirestore(DocumentSnapshot doc) {
@@ -32,6 +34,7 @@ class Abastecimento {
       horimetro: (data['horimetro'] ?? 0.0).toDouble(),
       aplicacao: data['aplicacao'] ?? '',
       usuarioUid: data['usuario_uid'],
+      fotoComprovante: data['foto_comprovante'],
     );
   }
 
@@ -44,6 +47,7 @@ class Abastecimento {
       'horimetro': horimetro,
       'aplicacao': aplicacao,
       'usuario_uid': usuarioUid,
+      'foto_comprovante': fotoComprovante,
     };
   }
 }

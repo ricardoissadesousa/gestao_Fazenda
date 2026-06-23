@@ -1,10 +1,60 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../core/app_theme.dart';
+import '../data/services/notificacao_service.dart';
+import '../data/services/folga_service.dart';
 import '../widgets/farm_card.dart';
 
-class GestorDashboardScreen extends StatelessWidget {
+class GestorDashboardScreen extends StatefulWidget {
   const GestorDashboardScreen({super.key});
+
+  @override
+  State<GestorDashboardScreen> createState() => _GestorDashboardScreenState();
+}
+
+class _GestorDashboardScreenState extends State<GestorDashboardScreen> {
+  final _notificacaoService = NotificacaoService();
+  final _folgaService = FolgaService();
+
+  int _notificacoesNaoLidas = 0;
+  int _solicitacoesPendentes = 0;
+  StreamSubscription<int>? _notificacaoSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _iniciarListenerNotificacoes();
+    _carregarPendentes();
+  }
+
+  void _iniciarListenerNotificacoes() {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    _notificacaoSubscription = _notificacaoService.contarNaoLidas(uid).listen(
+      (count) {
+        if (mounted) {
+          setState(() => _notificacoesNaoLidas = count);
+        }
+      },
+    );
+  }
+
+  Future<void> _carregarPendentes() async {
+    try {
+      final result = await _folgaService.obterSolicitacoesPendentes();
+      if (mounted) {
+        setState(() => _solicitacoesPendentes = result.docs.length);
+      }
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    _notificacaoSubscription?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -56,6 +106,9 @@ class GestorDashboardScreen extends StatelessWidget {
                         ],
                       ),
                     ),
+                    // Ícone de Notificações (Sino)
+                    _buildNotificacaoBadge(),
+                    const SizedBox(width: 4),
                     IconButton(
                       onPressed: () => _logout(context),
                       icon: const Icon(Icons.logout, color: Colors.white),
@@ -130,7 +183,11 @@ class GestorDashboardScreen extends StatelessWidget {
                             FarmCard(
                               icon: Icons.pending_actions,
                               title: 'Solicitações\nde Folga',
-                              onTap: () => Navigator.pushNamed(context, '/solicitacoes-pendentes'),
+                              badgeCount: _solicitacoesPendentes,
+                              onTap: () async {
+                                await Navigator.pushNamed(context, '/solicitacoes-pendentes');
+                                _carregarPendentes();
+                              },
                               gradient: const LinearGradient(
                                 colors: [Color(0xFFC62828), Color(0xFFEF5350)],
                               ),
@@ -153,6 +210,72 @@ class GestorDashboardScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// Ícone de sino com badge de notificações não lidas
+  Widget _buildNotificacaoBadge() {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        IconButton(
+          onPressed: _abrirNotificacoes,
+          icon: Icon(
+            _notificacoesNaoLidas > 0
+                ? Icons.notifications_active
+                : Icons.notifications_none,
+            color: Colors.white,
+          ),
+          tooltip: 'Notificações',
+        ),
+        if (_notificacoesNaoLidas > 0)
+          Positioned(
+            top: 4,
+            right: 4,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFF5252),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFFF5252).withValues(alpha: 0.4),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              constraints: const BoxConstraints(
+                minWidth: 18,
+                minHeight: 18,
+              ),
+              child: Text(
+                _notificacoesNaoLidas > 9 ? '9+' : '$_notificacoesNaoLidas',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+
+  /// Abre a tela de notificações / solicitações pendentes e marca como lidas
+  void _abrirNotificacoes(  ) async {
+    // Marcar todas como lidas ao abrir
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) {
+      await _notificacaoService.marcarTodasComoLidas(uid);
+    }
+    if (!mounted) return;
+    await Navigator.pushNamed(context, '/solicitacoes-pendentes');
+    // Recarregar ao voltar
+    _carregarPendentes();
   }
 
   void _logout(BuildContext context) {

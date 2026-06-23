@@ -1,10 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'notificacao_service.dart';
 
 class FolgaService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final NotificacaoService _notificacaoService = NotificacaoService();
   CollectionReference get _collection => _firestore.collection('solicitacoes_folga');
 
-  /// Criar solicitação de folga
+  /// Criar solicitação de folga e notificar gestores
   Future<void> criarSolicitacao({
     required String usuarioId,
     required String usuarioNome,
@@ -12,7 +14,7 @@ class FolgaService {
     required String dataSolicitada,
     required String motivo,
   }) async {
-    await _collection.add({
+    final docRef = await _collection.add({
       'usuario_id': usuarioId,
       'usuario_nome': usuarioNome,
       'usuario_email': usuarioEmail,
@@ -21,6 +23,13 @@ class FolgaService {
       'status': 'PENDENTE',
       'data_criacao': FieldValue.serverTimestamp(),
     });
+
+    // Notificar todos os gestores sobre a nova solicitação
+    await _notificacaoService.criarNotificacaoParaGestores(
+      funcionarioNome: usuarioNome,
+      dataSolicitada: dataSolicitada,
+      solicitacaoId: docRef.id,
+    );
   }
 
   /// Buscar solicitações do usuário
