@@ -240,7 +240,7 @@ Ou via Android Studio:
 
 ---
 
-## 👥 Contribuições da Equipe
+## 👥 Desenvolvedor
 
 <table>
   <tr>
@@ -253,15 +253,7 @@ Ou via Android Studio:
         </sub>
       </a>
     </td>
-    <td align="center">
-      <a href="https://github.com/Marllonlp">
-        <img src="https://avatars.githubusercontent.com/u/143544599?v=4" width="100px;" alt="Foto do Marlon"/><br>
-        <sub>
-          <p>Marlon</p>
-          <b>Função: Back-End, Banco de Dados, Front-End</b>
-        </sub>
-      </a>
-    </td>
+   
   </tr>
 </table>
 
