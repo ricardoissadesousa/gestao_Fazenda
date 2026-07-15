@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../core/app_theme.dart';
 import '../providers/auth_provider.dart';
+import '../providers/fazenda_provider.dart';
+import '../data/models/usuario.dart';
 import '../widgets/loading_button.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -31,15 +33,30 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final authProvider = Provider.of<AuthProvider>(context);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (authProvider.estado == EstadoLogin.sucesso) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Usuário cadastrado com sucesso!'),
-            backgroundColor: AppTheme.aprovada,
-          ),
-        );
-        authProvider.resetar();
-        Navigator.pop(context);
+      if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
+
+      if (authProvider.estado == EstadoLogin.sucesso && authProvider.usuario != null) {
+        final tipoEsperado = widget.funcao == 'gestor' ? TipoUsuario.GESTOR : TipoUsuario.FUNCIONARIO;
+        
+        if (authProvider.usuario!.tipo == tipoEsperado) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Usuário cadastrado com sucesso!'),
+              backgroundColor: AppTheme.aprovada,
+            ),
+          );
+
+          if (tipoEsperado == TipoUsuario.FUNCIONARIO && 
+              authProvider.usuario!.fazendasIds.isEmpty) {
+            Navigator.pushNamedAndRemoveUntil(context, '/vincular-fazenda', (r) => false);
+          } else {
+            if (tipoEsperado == TipoUsuario.GESTOR) {
+              context.read<FazendaProvider>().carregarFazendas();
+            }
+            final route = tipoEsperado == TipoUsuario.GESTOR ? '/gestor' : '/funcionario';
+            Navigator.pushNamedAndRemoveUntil(context, route, (r) => false);
+          }
+        }
       } else if (authProvider.estado == EstadoLogin.erro) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

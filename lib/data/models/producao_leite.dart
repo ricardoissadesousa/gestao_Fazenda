@@ -8,6 +8,7 @@ class ProducaoLeite {
   final double litrosTarde;
   final double totalLitros;
   final String observacoes;
+  final String? fazendaId;
 
   ProducaoLeite({
     this.id = '',
@@ -17,6 +18,7 @@ class ProducaoLeite {
     this.litrosTarde = 0.0,
     this.totalLitros = 0.0,
     this.observacoes = '',
+    this.fazendaId,
   });
 
   factory ProducaoLeite.fromFirestore(DocumentSnapshot doc) {
@@ -30,6 +32,7 @@ class ProducaoLeite {
       litrosTarde: (data['litrosTarde'] ?? 0.0).toDouble(),
       totalLitros: (data['total_litros'] ?? data['totalLitros'] ?? 0.0).toDouble(),
       observacoes: data['observacoes'] ?? '',
+      fazendaId: data['fazenda_id'],
     );
   }
 
@@ -41,6 +44,7 @@ class ProducaoLeite {
       'litrosTarde': litrosTarde,
       'totalLitros': totalLitros,
       'observacoes': observacoes,
+      'fazenda_id': fazendaId,
     };
   }
 }

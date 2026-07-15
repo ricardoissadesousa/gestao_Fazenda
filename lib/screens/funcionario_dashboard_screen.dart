@@ -1,13 +1,73 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
 import '../core/app_theme.dart';
+import '../providers/auth_provider.dart';
 import '../widgets/farm_card.dart';
 
-class FuncionarioDashboardScreen extends StatelessWidget {
+class FuncionarioDashboardScreen extends StatefulWidget {
   const FuncionarioDashboardScreen({super.key});
 
   @override
+  State<FuncionarioDashboardScreen> createState() => _FuncionarioDashboardScreenState();
+}
+
+class _FuncionarioDashboardScreenState extends State<FuncionarioDashboardScreen> {
+  /// Mapa de fazendaId → nome da fazenda
+  Map<String, String> _fazendaNomes = {};
+  bool _carregandoFazendas = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _verificarVinculo();
+      _carregarNomesFazendas();
+    });
+  }
+
+  void _verificarVinculo() {
+    final user = context.read<AuthProvider>().usuario;
+    if (user != null && user.fazendasIds.isEmpty) {
+      Navigator.pushNamedAndRemoveUntil(context, '/vincular-fazenda', (r) => false);
+    }
+  }
+
+  /// Carrega os nomes das fazendas vinculadas para exibir no dropdown
+  Future<void> _carregarNomesFazendas() async {
+    final user = context.read<AuthProvider>().usuario;
+    if (user == null || user.fazendasIds.isEmpty) return;
+
+    final firestore = FirebaseFirestore.instance;
+    final nomes = <String, String>{};
+
+    for (var fazendaId in user.fazendasIds) {
+      try {
+        final doc = await firestore.collection('fazendas').doc(fazendaId).get();
+        if (doc.exists) {
+          final data = doc.data() ?? {};
+          nomes[fazendaId] = data['nome'] ?? 'Fazenda';
+        } else {
+          nomes[fazendaId] = 'Fazenda removida';
+        }
+      } catch (_) {
+        nomes[fazendaId] = 'Fazenda';
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _fazendaNomes = nomes;
+        _carregandoFazendas = false;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final authProvider = context.watch<AuthProvider>();
+
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -45,15 +105,20 @@ class FuncionarioDashboardScreen extends StatelessWidget {
                               color: Colors.white,
                             ),
                           ),
-                          Text(
-                            'Operações do dia a dia',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Colors.white.withValues(alpha: 0.8),
-                            ),
-                          ),
+                          // Dropdown de seleção de fazenda
+                          _buildFazendaSelector(authProvider),
                         ],
                       ),
+                    ),
+                    // Botão para vincular nova fazenda
+                    IconButton(
+                      onPressed: () async {
+                        await Navigator.pushNamed(context, '/vincular-fazenda');
+                        // Recarregar nomes após voltar
+                        _carregarNomesFazendas();
+                      },
+                      icon: const Icon(Icons.add_business, color: Colors.white),
+                      tooltip: 'Vincular nova fazenda',
                     ),
                     IconButton(
                       onPressed: () => _logout(context),
@@ -133,6 +198,68 @@ class FuncionarioDashboardScreen extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  /// Widget de seleção de fazenda ativa
+  Widget _buildFazendaSelector(AuthProvider authProvider) {
+    final fazendasIds = authProvider.usuario?.fazendasIds ?? [];
+
+    if (_carregandoFazendas) {
+      return const SizedBox(
+        height: 20,
+        width: 20,
+        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+      );
+    }
+
+    if (fazendasIds.isEmpty) {
+      return Text(
+        'Nenhuma fazenda vinculada',
+        style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 13),
+      );
+    }
+
+    // Se tem apenas uma fazenda, mostra só o nome
+    if (fazendasIds.length == 1) {
+      return Text(
+        _fazendaNomes[fazendasIds.first] ?? 'Fazenda',
+        style: TextStyle(
+          color: Colors.white.withValues(alpha: 0.8),
+          fontSize: 13,
+        ),
+      );
+    }
+
+    // Se tem múltiplas fazendas, mostra dropdown
+    return DropdownButtonHideUnderline(
+      child: DropdownButton<String>(
+        hint: const Text(
+          'Selecione...',
+          style: TextStyle(color: Colors.white, fontSize: 14),
+        ),
+        value: fazendasIds.contains(authProvider.fazendaAtivaId)
+            ? authProvider.fazendaAtivaId
+            : null,
+        dropdownColor: const Color(0xFF2E7D32),
+        icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+        ),
+        onChanged: (String? novaFazendaId) {
+          if (novaFazendaId != null) {
+            authProvider.selecionarFazendaAtiva(novaFazendaId);
+          }
+        },
+        items: fazendasIds.map((id) {
+          return DropdownMenuItem<String>(
+            value: id,
+            child: Text(_fazendaNomes[id] ?? 'Fazenda'),
+          );
+        }).toList(),
       ),
     );
   }

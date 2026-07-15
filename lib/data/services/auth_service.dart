@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/usuario.dart';
+import 'fazenda_service.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -65,6 +66,32 @@ class AuthService {
   /// Logout
   void logout() {
     _auth.signOut();
+  }
+
+  /// Vincula o funcionário a uma fazenda pelo código de vínculo.
+  /// Retorna o ID da fazenda vinculada.
+  Future<String> vincularFazenda(String uid, String codigo) async {
+    final fazendaService = FazendaService();
+    final fazenda = await fazendaService.buscarPorCodigo(codigo);
+    if (fazenda == null) {
+      throw Exception('Código inválido. Nenhuma fazenda encontrada com este código.');
+    }
+
+    // Verificar se já está vinculado a esta fazenda
+    final userDoc = await _usuariosCollection.doc(uid).get();
+    if (userDoc.exists) {
+      final data = userDoc.data() as Map<String, dynamic>? ?? {};
+      final fazendasExistentes = List<String>.from(data['fazendas_ids'] ?? []);
+      if (fazendasExistentes.contains(fazenda.id)) {
+        throw Exception('Você já está vinculado a esta fazenda.');
+      }
+    }
+
+    await _usuariosCollection.doc(uid).update({
+      'fazendas_ids': FieldValue.arrayUnion([fazenda.id]),
+      'fazenda_id': fazenda.id, // Compatibilidade com campo antigo
+    });
+    return fazenda.id;
   }
 
   /// Verifica se há usuário logado

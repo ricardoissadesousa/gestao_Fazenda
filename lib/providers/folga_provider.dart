@@ -13,6 +13,7 @@ class FolgaProvider extends ChangeNotifier {
     required String usuarioEmail,
     required String dataSolicitada,
     required String motivo,
+    required String fazendaId,
   }) async {
     _loading = true;
     notifyListeners();
@@ -23,6 +24,7 @@ class FolgaProvider extends ChangeNotifier {
       usuarioEmail: usuarioEmail,
       dataSolicitada: dataSolicitada,
       motivo: motivo,
+      fazendaId: fazendaId,
     );
 
     _loading = false;

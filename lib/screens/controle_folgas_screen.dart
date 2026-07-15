@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../core/app_theme.dart';
+import '../data/models/comunicacao.dart';
 import '../data/models/folga_status.dart';
-import '../data/models/historico_folga.dart';
 import '../data/services/auth_service.dart';
-import '../data/services/folga_service.dart';
+import '../data/services/comunicacao_service.dart';
+import 'package:provider/provider.dart';
+import '../providers/fazenda_provider.dart';
+import '../core/utils/fazenda_helper.dart';
 import '../widgets/calendar_grid.dart';
 import 'package:intl/intl.dart';
 
@@ -16,19 +19,22 @@ class ControleFolgasScreen extends StatefulWidget {
 }
 
 class _ControleFolgasScreenState extends State<ControleFolgasScreen> {
-  final _folgaService = FolgaService();
+  final _comunicacaoService = ComunicacaoService();
   final _authService = AuthService();
 
   DateTime _currentMonth = DateTime.now();
   List<CalendarDay> _days = [];
-  List<HistoricoFolga> _historico = [];
+  List<Comunicacao> _historico = [];
   String _nomeUsuario = 'Funcionário';
 
   @override
   void initState() {
     super.initState();
     _carregarNome();
-    _carregarDados();
+    // Esperar o provider ser montado
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _carregarDados();
+    });
   }
 
   Future<void> _carregarNome() async {
@@ -38,50 +44,36 @@ class _ControleFolgasScreenState extends State<ControleFolgasScreen> {
 
   Future<void> _carregarDados() async {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+    final fazenda = context.read<FazendaProvider>().fazendaSelecionada;
+    if (user == null || fazenda == null) return;
 
-    final result = await _folgaService.obterSolicitacoesDoUsuario(user.uid);
+    final comunicacoes = await _comunicacaoService.obterSolicitacoesDoUsuario(user.uid, fazenda.id);
 
     final folgasMap = <String, FolgaStatus>{};
-    final listaHist = <HistoricoFolga>[];
-
-    for (var doc in result.docs) {
-      final data = doc.data() as Map<String, dynamic>;
-      final dataSol = data['data_solicitada'] ?? '';
-      final statusStr = data['status'] ?? '';
-
-      final folgaStatus = switch (statusStr) {
-        'APROVADA' => FolgaStatus.APROVADA,
-        'REPROVADA' => FolgaStatus.REPROVADA,
-        'PENDENTE' => FolgaStatus.PENDENTE,
-        _ => FolgaStatus.DISPONIVEL,
+    for (var c in comunicacoes) {
+      final dataSol = c.dataSolicitada;
+      final folgaStatus = switch (c.status) {
+        StatusComunicacao.ACEITO => FolgaStatus.APROVADA,
+        StatusComunicacao.RECUSADO => FolgaStatus.REPROVADA,
+        StatusComunicacao.PENDENTE => FolgaStatus.PENDENTE,
+        StatusComunicacao.VISUALIZADO => FolgaStatus.PENDENTE,
       };
       folgasMap[dataSol] = folgaStatus;
-
-      final historicoStatus = switch (statusStr) {
-        'APROVADA' => StatusFolga.APROVADA,
-        'REPROVADA' => StatusFolga.REPROVADA,
-        _ => StatusFolga.PENDENTE,
-      };
-      listaHist.add(HistoricoFolga(
-        nome: 'Solicitação de Folga',
-        data: dataSol,
-        status: historicoStatus,
-      ));
     }
 
     // Ordenar por data (mais recente primeiro)
     final sdf = DateFormat('dd/MM/yyyy');
-    listaHist.sort((a, b) {
-      try {
-        return sdf.parse(b.data).compareTo(sdf.parse(a.data));
-      } catch (_) {
-        return 0;
-      }
-    });
+    final listaOrdenada = List<Comunicacao>.from(comunicacoes)
+      ..sort((a, b) {
+        try {
+          return sdf.parse(b.dataSolicitada).compareTo(sdf.parse(a.dataSolicitada));
+        } catch (_) {
+          return 0;
+        }
+      });
 
     setState(() {
-      _historico = listaHist;
+      _historico = listaOrdenada;
       _days = _gerarDiasCalendario(folgasMap);
     });
   }
@@ -226,8 +218,8 @@ class _ControleFolgasScreenState extends State<ControleFolgasScreen> {
                         size: 20,
                       ),
                     ),
-                    title: Text(item.nome),
-                    subtitle: Text('Solicitado para o dia: ${item.data}'),
+                    title: const Text('Solicitação de Folga'),
+                    subtitle: Text('Solicitado para o dia: ${item.dataSolicitada}'),
                     trailing: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
@@ -266,27 +258,30 @@ class _ControleFolgasScreenState extends State<ControleFolgasScreen> {
     );
   }
 
-  Color _statusColor(StatusFolga status) {
+  Color _statusColor(StatusComunicacao status) {
     return switch (status) {
-      StatusFolga.APROVADA => AppTheme.aprovada,
-      StatusFolga.PENDENTE => AppTheme.pendente,
-      StatusFolga.REPROVADA => AppTheme.reprovada,
+      StatusComunicacao.ACEITO => AppTheme.aprovada,
+      StatusComunicacao.PENDENTE => AppTheme.pendente,
+      StatusComunicacao.RECUSADO => AppTheme.reprovada,
+      StatusComunicacao.VISUALIZADO => AppTheme.pendente,
     };
   }
 
-  IconData _statusIcon(StatusFolga status) {
+  IconData _statusIcon(StatusComunicacao status) {
     return switch (status) {
-      StatusFolga.APROVADA => Icons.check_circle,
-      StatusFolga.PENDENTE => Icons.schedule,
-      StatusFolga.REPROVADA => Icons.cancel,
+      StatusComunicacao.ACEITO => Icons.check_circle,
+      StatusComunicacao.PENDENTE => Icons.schedule,
+      StatusComunicacao.RECUSADO => Icons.cancel,
+      StatusComunicacao.VISUALIZADO => Icons.visibility,
     };
   }
 
-  String _statusText(StatusFolga status) {
+  String _statusText(StatusComunicacao status) {
     return switch (status) {
-      StatusFolga.APROVADA => 'Aprovada',
-      StatusFolga.PENDENTE => 'Pendente',
-      StatusFolga.REPROVADA => 'Recusada',
+      StatusComunicacao.ACEITO => 'Aprovada',
+      StatusComunicacao.PENDENTE => 'Pendente',
+      StatusComunicacao.RECUSADO => 'Recusada',
+      StatusComunicacao.VISUALIZADO => 'Visualizada',
     };
   }
 
@@ -339,14 +334,18 @@ class _ControleFolgasScreenState extends State<ControleFolgasScreen> {
           ElevatedButton(
             onPressed: () async {
               final user = FirebaseAuth.instance.currentUser;
+              final fazendaId = FazendaHelper.obterFazendaIdAtual(context);
+              if (!FazendaHelper.validarFazendaAtiva(context, fazendaId)) return;
+
               if (user != null) {
                 final nome = await _authService.buscarNomeUsuario();
-                await _folgaService.criarSolicitacao(
+                await _comunicacaoService.criarSolicitacaoFolga(
                   usuarioId: user.uid,
                   usuarioNome: nome,
                   usuarioEmail: user.email ?? '',
                   dataSolicitada: data,
                   motivo: motivoController.text,
+                  fazendaId: fazendaId!,
                 );
                 if (context.mounted) Navigator.pop(context);
                 _carregarDados();

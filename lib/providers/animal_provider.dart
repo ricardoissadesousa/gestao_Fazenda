@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../data/models/animal.dart';
 import '../data/services/animal_service.dart';
@@ -11,6 +12,7 @@ class AnimalProvider extends ChangeNotifier {
 
   String _termoBusca = '';
   int _mesFiltro = 0; // 0 = Todos
+  int _anoFiltro = 0; // 0 = Todos
 
   bool _loading = false;
   bool get loading => _loading;
@@ -18,17 +20,23 @@ class AnimalProvider extends ChangeNotifier {
   String? _erro;
   String? get erro => _erro;
 
-  AnimalProvider() {
-    carregarAnimais();
-  }
+  AnimalProvider();
 
-  void carregarAnimais() {
-    _service.obterAnimais().listen((lista) {
+  StreamSubscription? _subscription;
+
+  void carregarAnimaisFazenda(String fazendaId) {
+    _subscription?.cancel();
+    _loading = true;
+    notifyListeners();
+
+    _subscription = _service.obterAnimais(fazendaId).listen((lista) {
       _listaCompleta = lista;
       _aplicarFiltros();
+      _loading = false;
       notifyListeners();
     }, onError: (e) {
       _erro = e.toString();
+      _loading = false;
       notifyListeners();
     });
   }
@@ -41,6 +49,12 @@ class AnimalProvider extends ChangeNotifier {
 
   void filtrarPorMes(int mesIndex) {
     _mesFiltro = mesIndex;
+    _aplicarFiltros();
+    notifyListeners();
+  }
+
+  void filtrarPorAno(int ano) {
+    _anoFiltro = ano;
     _aplicarFiltros();
     notifyListeners();
   }
@@ -61,6 +75,17 @@ class AnimalProvider extends ChangeNotifier {
         if (partes.length >= 2) {
           final mes = int.tryParse(partes[1]);
           return mes == _mesFiltro;
+        }
+        return false;
+      }).toList();
+    }
+
+    if (_anoFiltro > 0) {
+      lista = lista.where((animal) {
+        final partes = animal.nascimento.split('/');
+        if (partes.length >= 3) {
+          final ano = int.tryParse(partes[2]);
+          return ano == _anoFiltro;
         }
         return false;
       }).toList();

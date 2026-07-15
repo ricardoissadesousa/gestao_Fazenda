@@ -10,7 +10,7 @@ class ProducaoProvider extends ChangeNotifier {
   bool get loading => _loading;
 
   /// Salvar produção com mapa dinâmico de tanques
-  Future<bool> salvarProducao(List<double> valoresTanques) async {
+  Future<bool> salvarProducao(List<double> valoresTanques, String fazendaId) async {
     double total = 0.0;
     final mapTanques = <String, dynamic>{};
 
@@ -24,6 +24,7 @@ class ProducaoProvider extends ChangeNotifier {
     mapTanques['data_registro'] = Timestamp.now();
     mapTanques['total_litros'] = total;
     mapTanques['usuario_id'] = FirebaseAuth.instance.currentUser?.uid ?? 'anonimo';
+    mapTanques['fazenda_id'] = fazendaId;
 
     _loading = true;
     notifyListeners();

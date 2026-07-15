@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../data/models/abastecimento.dart';
 import '../data/services/abastecimento_service.dart';
@@ -11,12 +12,13 @@ class AbastecimentoProvider extends ChangeNotifier {
   bool _loading = false;
   bool get loading => _loading;
 
-  AbastecimentoProvider() {
-    carregarAbastecimentos();
-  }
+  AbastecimentoProvider();
 
-  void carregarAbastecimentos() {
-    _service.obterAbastecimentos().listen((lista) {
+  StreamSubscription? _subscription;
+
+  void carregarAbastecimentosFazenda(String fazendaId) {
+    _subscription?.cancel();
+    _subscription = _service.obterAbastecimentos(fazendaId).listen((lista) {
       _listaCompleta = lista;
       notifyListeners();
     });

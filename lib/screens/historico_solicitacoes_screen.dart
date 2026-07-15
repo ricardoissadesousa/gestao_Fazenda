@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../core/app_theme.dart';
-import '../data/models/historico_folga.dart';
-import '../data/services/folga_service.dart';
+import '../data/models/comunicacao.dart';
+import '../data/services/comunicacao_service.dart';
+import 'package:provider/provider.dart';
+import '../providers/fazenda_provider.dart';
 import 'package:intl/intl.dart';
 
 class HistoricoSolicitacoesScreen extends StatefulWidget {
@@ -12,10 +15,16 @@ class HistoricoSolicitacoesScreen extends StatefulWidget {
 }
 
 class _HistoricoSolicitacoesScreenState extends State<HistoricoSolicitacoesScreen> {
-  final _folgaService = FolgaService();
-  List<HistoricoFolga> _listaCompleta = [];
-  String _mesFiltro = 'Todos';
-  List<String> _meses = ['Todos'];
+  final _comunicacaoService = ComunicacaoService();
+
+  final _meses = [
+    'Todos', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+  ];
+
+  List<Comunicacao> _listaCompleta = [];
+  int _mesFiltro = 0; // 0 = Todos
+  int _anoFiltro = 0; // 0 = Todos
   bool _loading = true;
 
   @override
@@ -26,64 +35,34 @@ class _HistoricoSolicitacoesScreenState extends State<HistoricoSolicitacoesScree
 
   Future<void> _carregarHistorico() async {
     setState(() => _loading = true);
-    final result = await _folgaService.obterHistoricoGlobal();
-    final lista = <HistoricoFolga>[];
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final fazenda = context.read<FazendaProvider>().fazendaSelecionada;
 
-    for (var doc in result.docs) {
-      final data = doc.data() as Map<String, dynamic>;
-      final statusStr = data['status'] ?? '';
-      final nomeFuncionario = (data['usuario_nome'] ?? '').toString().trim();
-      final emailFuncionario = (data['usuario_email'] ?? '').toString().trim();
-      final dataSolicitada = data['data_solicitada'] ?? '';
-
-      final status = switch (statusStr) {
-        'APROVADA' => StatusFolga.APROVADA,
-        'REPROVADA' => StatusFolga.REPROVADA,
-        _ => StatusFolga.PENDENTE,
-      };
-
-      final textoExibicao =
-          (nomeFuncionario.toLowerCase() == emailFuncionario.toLowerCase() || nomeFuncionario.isEmpty)
-              ? emailFuncionario
-              : '$nomeFuncionario\n$emailFuncionario';
-
-      lista.add(HistoricoFolga(
-        nome: textoExibicao,
-        data: dataSolicitada,
-        status: status,
-      ));
+    if (uid == null || fazenda == null) {
+      setState(() => _loading = false);
+      return;
     }
 
-    // Extrair meses
-    final sdfEntrada = DateFormat('dd/MM/yyyy');
-    final sdfSaida = DateFormat('MMMM yyyy', 'pt_BR');
-    final mesesSet = <String>{'Todos'};
-    for (var item in lista) {
-      try {
-        final dateObj = sdfEntrada.parse(item.data);
-        final mesFormatado = sdfSaida.format(dateObj);
-        mesesSet.add(mesFormatado[0].toUpperCase() + mesFormatado.substring(1));
-      } catch (_) {}
-    }
+    final resultado = await _comunicacaoService.obterHistoricoGlobal(uid, fazenda.id);
 
     setState(() {
-      _listaCompleta = lista;
-      _meses = mesesSet.toList();
+      _listaCompleta = resultado;
       _loading = false;
     });
   }
 
-  List<HistoricoFolga> get _listaFiltrada {
-    if (_mesFiltro == 'Todos') return _listaCompleta;
-    final sdfEntrada = DateFormat('dd/MM/yyyy');
-    final sdfSaida = DateFormat('MMMM yyyy', 'pt_BR');
+  List<Comunicacao> get _listaFiltrada {
     return _listaCompleta.where((item) {
       try {
-        final dateObj = sdfEntrada.parse(item.data);
-        final mesItem = sdfSaida.format(dateObj);
-        return (mesItem[0].toUpperCase() + mesItem.substring(1)) == _mesFiltro;
+        final sdf = DateFormat('dd/MM/yyyy');
+        final dateObj = sdf.parse(item.dataSolicitada);
+
+        final matchMes = _mesFiltro == 0 || dateObj.month == _mesFiltro;
+        final matchAno = _anoFiltro == 0 || dateObj.year == _anoFiltro;
+
+        return matchMes && matchAno;
       } catch (_) {
-        return false;
+        return _mesFiltro == 0 && _anoFiltro == 0;
       }
     }).toList();
   }
@@ -96,18 +75,69 @@ class _HistoricoSolicitacoesScreenState extends State<HistoricoSolicitacoesScree
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
+                // Filtros mês + ano
                 Padding(
                   padding: const EdgeInsets.all(16),
-                  child: DropdownButtonFormField<String>(
-                    initialValue: _meses.contains(_mesFiltro) ? _mesFiltro : 'Todos',
-                    decoration: const InputDecoration(
-                      prefixIcon: Icon(Icons.filter_list),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    ),
-                    items: _meses.map((m) => DropdownMenuItem(value: m, child: Text(m))).toList(),
-                    onChanged: (val) {
-                      if (val != null) setState(() => _mesFiltro = val);
-                    },
+                  child: Row(
+                    children: [
+                      // Seletor de mês
+                      Expanded(
+                        flex: 3,
+                        child: GestureDetector(
+                          onTap: _selecionarMes,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: AppTheme.divider),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    _meses[_mesFiltro],
+                                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const Icon(Icons.keyboard_arrow_down),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      // Seletor de ano
+                      Expanded(
+                        flex: 2,
+                        child: GestureDetector(
+                          onTap: _selecionarAno,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: AppTheme.divider),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    _anoFiltro == 0 ? 'Todos' : '$_anoFiltro',
+                                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const Icon(Icons.keyboard_arrow_down),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 Expanded(
@@ -134,10 +164,12 @@ class _HistoricoSolicitacoesScreenState extends State<HistoricoSolicitacoesScree
                                   ),
                                 ),
                                 title: Text(
-                                  item.nome,
+                                  item.remetenteNome.isNotEmpty
+                                      ? item.remetenteNome
+                                      : item.remetenteEmail,
                                   style: const TextStyle(fontSize: 14),
                                 ),
-                                subtitle: Text('Dia: ${item.data}'),
+                                subtitle: Text('Dia: ${item.dataSolicitada}'),
                                 trailing: Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                   decoration: BoxDecoration(
@@ -163,21 +195,90 @@ class _HistoricoSolicitacoesScreenState extends State<HistoricoSolicitacoesScree
     );
   }
 
-  Color _statusColor(StatusFolga s) => switch (s) {
-        StatusFolga.APROVADA => AppTheme.aprovada,
-        StatusFolga.REPROVADA => AppTheme.reprovada,
-        StatusFolga.PENDENTE => AppTheme.pendente,
+  void _selecionarMes() {
+    showDialog(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: const Text('Selecione o Mês'),
+        children: List.generate(_meses.length, (index) {
+          return SimpleDialogOption(
+            onPressed: () {
+              Navigator.pop(context);
+              setState(() => _mesFiltro = index);
+            },
+            child: Text(
+              _meses[index],
+              style: TextStyle(
+                fontWeight: index == _mesFiltro ? FontWeight.w700 : FontWeight.w400,
+                color: index == _mesFiltro ? AppTheme.primary : null,
+              ),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+
+  void _selecionarAno() {
+    final anoAtual = DateTime.now().year;
+    final anosDisponiveis = List.generate(7, (i) => anoAtual - 5 + i);
+
+    showDialog(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: const Text('Selecione o Ano'),
+        children: [
+          SimpleDialogOption(
+            onPressed: () {
+              Navigator.pop(context);
+              setState(() => _anoFiltro = 0);
+            },
+            child: Text(
+              'Todos',
+              style: TextStyle(
+                fontWeight: 0 == _anoFiltro ? FontWeight.w700 : FontWeight.w400,
+                color: 0 == _anoFiltro ? AppTheme.primary : null,
+              ),
+            ),
+          ),
+          ...anosDisponiveis.map((ano) {
+            return SimpleDialogOption(
+              onPressed: () {
+                Navigator.pop(context);
+                setState(() => _anoFiltro = ano);
+              },
+              child: Text(
+                '$ano',
+                style: TextStyle(
+                  fontWeight: ano == _anoFiltro ? FontWeight.w700 : FontWeight.w400,
+                  color: ano == _anoFiltro ? AppTheme.primary : null,
+                ),
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Color _statusColor(StatusComunicacao s) => switch (s) {
+        StatusComunicacao.ACEITO => AppTheme.aprovada,
+        StatusComunicacao.RECUSADO => AppTheme.reprovada,
+        StatusComunicacao.PENDENTE => AppTheme.pendente,
+        StatusComunicacao.VISUALIZADO => AppTheme.pendente,
       };
 
-  IconData _statusIcon(StatusFolga s) => switch (s) {
-        StatusFolga.APROVADA => Icons.check_circle,
-        StatusFolga.REPROVADA => Icons.cancel,
-        StatusFolga.PENDENTE => Icons.schedule,
+  IconData _statusIcon(StatusComunicacao s) => switch (s) {
+        StatusComunicacao.ACEITO => Icons.check_circle,
+        StatusComunicacao.RECUSADO => Icons.cancel,
+        StatusComunicacao.PENDENTE => Icons.schedule,
+        StatusComunicacao.VISUALIZADO => Icons.visibility,
       };
 
-  String _statusText(StatusFolga s) => switch (s) {
-        StatusFolga.APROVADA => 'Aprovada',
-        StatusFolga.REPROVADA => 'Recusada',
-        StatusFolga.PENDENTE => 'Pendente',
+  String _statusText(StatusComunicacao s) => switch (s) {
+        StatusComunicacao.ACEITO => 'Aprovada',
+        StatusComunicacao.RECUSADO => 'Recusada',
+        StatusComunicacao.PENDENTE => 'Pendente',
+        StatusComunicacao.VISUALIZADO => 'Visualizada',
       };
 }

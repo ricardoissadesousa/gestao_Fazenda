@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../core/app_theme.dart';
 import '../providers/animal_provider.dart';
+import '../providers/fazenda_provider.dart';
 import '../widgets/animal_list_tile.dart';
 
 class ListaAnimaisScreen extends StatefulWidget {
@@ -14,11 +15,28 @@ class ListaAnimaisScreen extends StatefulWidget {
 class _ListaAnimaisScreenState extends State<ListaAnimaisScreen> {
   final _searchController = TextEditingController();
   int _mesSelecionado = 0;
+  int _anoSelecionado = 0;
 
   final _meses = [
     'Todos', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
     'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _carregarAnimais();
+    });
+  }
+
+  void _carregarAnimais() {
+    // Busca a fazenda atual de forma segura sem ser nula
+    final fazenda = Provider.of<FazendaProvider>(context, listen: false).fazendaSelecionada;
+    if (fazenda != null) {
+      Provider.of<AnimalProvider>(context, listen: false).carregarAnimaisFazenda(fazenda.id);
+    }
+  }
 
   @override
   void dispose() {
@@ -55,24 +73,69 @@ class _ListaAnimaisScreenState extends State<ListaAnimaisScreen> {
               ),
             ),
           ),
-          // Filtro por mês
+          // Filtros
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: DropdownButtonFormField<int>(
-              initialValue: _mesSelecionado,
-              decoration: const InputDecoration(
-                contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                prefixIcon: Icon(Icons.calendar_month),
-              ),
-              items: List.generate(_meses.length, (i) {
-                return DropdownMenuItem(value: i, child: Text(_meses[i]));
-              }),
-              onChanged: (value) {
-                if (value != null) {
-                  setState(() => _mesSelecionado = value);
-                  provider.filtrarPorMes(value);
-                }
-              },
+            child: Row(
+              children: [
+                // Seletor de mês
+                Expanded(
+                  flex: 3,
+                  child: GestureDetector(
+                    onTap: () => _selecionarMes(provider),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppTheme.divider),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              _meses[_mesSelecionado],
+                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const Icon(Icons.keyboard_arrow_down),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                // Seletor de ano
+                Expanded(
+                  flex: 2,
+                  child: GestureDetector(
+                    onTap: () => _selecionarAno(provider),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppTheme.divider),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              _anoSelecionado == 0 ? 'Todos' : '$_anoSelecionado',
+                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const Icon(Icons.keyboard_arrow_down),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 8),
@@ -139,6 +202,75 @@ class _ListaAnimaisScreenState extends State<ListaAnimaisScreen> {
                     },
                   ),
           ),
+        ],
+      ),
+    );
+  }
+
+  void _selecionarMes(AnimalProvider provider) {
+    showDialog(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: const Text('Selecione o Mês'),
+        children: List.generate(_meses.length, (index) {
+          return SimpleDialogOption(
+            onPressed: () {
+              Navigator.pop(context);
+              setState(() => _mesSelecionado = index);
+              provider.filtrarPorMes(index);
+            },
+            child: Text(
+              _meses[index],
+              style: TextStyle(
+                fontWeight: index == _mesSelecionado ? FontWeight.w700 : FontWeight.w400,
+                color: index == _mesSelecionado ? AppTheme.primary : null,
+              ),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+
+  void _selecionarAno(AnimalProvider provider) {
+    final anoAtual = DateTime.now().year;
+    final anosDisponiveis = List.generate(7, (i) => anoAtual - 5 + i);
+
+    showDialog(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: const Text('Selecione o Ano'),
+        children: [
+          SimpleDialogOption(
+            onPressed: () {
+              Navigator.pop(context);
+              setState(() => _anoSelecionado = 0);
+              provider.filtrarPorAno(0);
+            },
+            child: Text(
+              'Todos',
+              style: TextStyle(
+                fontWeight: 0 == _anoSelecionado ? FontWeight.w700 : FontWeight.w400,
+                color: 0 == _anoSelecionado ? AppTheme.primary : null,
+              ),
+            ),
+          ),
+          ...anosDisponiveis.map((ano) {
+            return SimpleDialogOption(
+              onPressed: () {
+                Navigator.pop(context);
+                setState(() => _anoSelecionado = ano);
+                provider.filtrarPorAno(ano);
+              },
+              child: Text(
+                '$ano',
+                style: TextStyle(
+                  fontWeight: ano == _anoSelecionado ? FontWeight.w700 : FontWeight.w400,
+                  color: ano == _anoSelecionado ? AppTheme.primary : null,
+                ),
+              ),
+            );
+          }),
         ],
       ),
     );

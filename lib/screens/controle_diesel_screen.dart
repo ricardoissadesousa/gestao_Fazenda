@@ -5,8 +5,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import '../core/app_theme.dart';
-import '../data/services/configuracao_service.dart';
+import '../data/services/abastecimento_service.dart';
 import '../widgets/loading_button.dart';
+import '../core/utils/fazenda_helper.dart';
+import '../data/services/configuracao_service.dart';
+import 'package:provider/provider.dart';
+import '../providers/fazenda_provider.dart';
 
 class ControleDieselScreen extends StatefulWidget {
   const ControleDieselScreen({super.key});
@@ -17,6 +21,7 @@ class ControleDieselScreen extends StatefulWidget {
 
 class _ControleDieselScreenState extends State<ControleDieselScreen> {
   final _configService = ConfiguracaoService();
+  final _service = AbastecimentoService();
   final _nomeController = TextEditingController();
   final _litrosController = TextEditingController();
   final _horimetroController = TextEditingController();
@@ -35,7 +40,10 @@ class _ControleDieselScreenState extends State<ControleDieselScreen> {
   }
 
   Future<void> _carregarEquipamentos() async {
-    final lista = await _configService.carregarEquipamentos();
+    final fazenda = context.read<FazendaProvider>().fazendaSelecionada;
+    if (fazenda == null) return;
+    
+    final lista = await _configService.carregarEquipamentos(fazenda.id);
     setState(() {
       _equipamentos = lista;
       if (lista.isNotEmpty) _equipamentoSelecionado = lista.first;
@@ -470,9 +478,12 @@ class _ControleDieselScreenState extends State<ControleDieselScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
+              final fazenda = context.read<FazendaProvider>().fazendaSelecionada;
+              if (fazenda == null) return;
+              
               final nome = controller.text.trim();
               if (nome.isNotEmpty) {
-                await _configService.adicionarVeiculo(nome);
+                await _configService.adicionarVeiculo(fazenda.id, nome);
                 setState(() {
                   _equipamentos.add(nome);
                   _equipamentoSelecionado = nome;
@@ -488,6 +499,9 @@ class _ControleDieselScreenState extends State<ControleDieselScreen> {
   }
 
   Future<void> _registrar() async {
+    final fazendaId = FazendaHelper.obterFazendaIdAtual(context);
+    if (!FazendaHelper.validarFazendaAtiva(context, fazendaId)) return;
+
     final litros = double.tryParse(_litrosController.text);
     final horimetro = double.tryParse(_horimetroController.text);
 
@@ -507,24 +521,25 @@ class _ControleDieselScreenState extends State<ControleDieselScreen> {
         final bytes = await _fotoSelecionada!.readAsBytes();
         fotoBase64 = base64Encode(bytes);
       } catch (e) {
-        // Se falhar a leitura da foto, continua sem ela
         debugPrint('Erro ao converter foto: $e');
       }
     }
 
-    final dados = {
-      'data': Timestamp.now(),
-      'motorista': _nomeController.text.trim(),
-      'litros': litros,
-      'horimetro': horimetro,
-      'aplicacao': _aplicacaoController.text.trim(),
-      'equipamento': _equipamentoSelecionado,
-      'usuario_uid': FirebaseAuth.instance.currentUser?.uid,
-      'foto_comprovante': fotoBase64,
-    };
-
     try {
-      await FirebaseFirestore.instance.collection('abastecimentos').add(dados);
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+
+      await _service.adicionarAbastecimento({
+        'data': Timestamp.now(),
+        'motorista': _nomeController.text.trim(),
+        'litros': litros,
+        'horimetro': horimetro,
+        'aplicacao': _aplicacaoController.text.trim(),
+        'equipamento': _equipamentoSelecionado,
+        'usuario_uid': uid,
+        'foto_comprovante': fotoBase64,
+        'fazenda_id': fazendaId,
+      });
+
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(

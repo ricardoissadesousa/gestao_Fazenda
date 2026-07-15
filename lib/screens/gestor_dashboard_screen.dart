@@ -1,9 +1,13 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../core/app_theme.dart';
 import '../data/services/notificacao_service.dart';
-import '../data/services/folga_service.dart';
+import '../data/services/comunicacao_service.dart';
+
+import '../providers/fazenda_provider.dart';
+import '../data/models/fazenda.dart';
 import '../widgets/farm_card.dart';
 
 class GestorDashboardScreen extends StatefulWidget {
@@ -15,24 +19,43 @@ class GestorDashboardScreen extends StatefulWidget {
 
 class _GestorDashboardScreenState extends State<GestorDashboardScreen> {
   final _notificacaoService = NotificacaoService();
-  final _folgaService = FolgaService();
+  final _comunicacaoService = ComunicacaoService();
+
 
   int _notificacoesNaoLidas = 0;
   int _solicitacoesPendentes = 0;
   StreamSubscription<int>? _notificacaoSubscription;
+  Fazenda? _ultimaFazenda;
 
   @override
   void initState() {
     super.initState();
-    _iniciarListenerNotificacoes();
-    _carregarPendentes();
+    // Garantir que fazendas são carregadas com o UID correto
+    context.read<FazendaProvider>().carregarFazendas();
   }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final fazenda = context.watch<FazendaProvider>().fazendaSelecionada;
+    if (fazenda != _ultimaFazenda) {
+      _ultimaFazenda = fazenda;
+      if (fazenda != null) {
+        _iniciarListenerNotificacoes();
+        _carregarPendentes();
+      }
+    }
+  }
+
+
 
   void _iniciarListenerNotificacoes() {
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
+    final fazenda = context.read<FazendaProvider>().fazendaSelecionada;
+    if (uid == null || fazenda == null) return;
 
-    _notificacaoSubscription = _notificacaoService.contarNaoLidas(uid).listen(
+    _notificacaoSubscription?.cancel();
+    _notificacaoSubscription = _notificacaoService.contarNaoLidas(uid, fazenda.id).listen(
       (count) {
         if (mounted) {
           setState(() => _notificacoesNaoLidas = count);
@@ -43,9 +66,13 @@ class _GestorDashboardScreenState extends State<GestorDashboardScreen> {
 
   Future<void> _carregarPendentes() async {
     try {
-      final result = await _folgaService.obterSolicitacoesPendentes();
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      final fazenda = context.read<FazendaProvider>().fazendaSelecionada;
+      if (uid == null || fazenda == null) return;
+      
+      final result = await _comunicacaoService.obterSolicitacoesPendentes(uid, fazenda.id);
       if (mounted) {
-        setState(() => _solicitacoesPendentes = result.docs.length);
+        setState(() => _solicitacoesPendentes = result.length);
       }
     } catch (_) {}
   }
@@ -96,16 +123,66 @@ class _GestorDashboardScreenState extends State<GestorDashboardScreen> {
                               color: Colors.white,
                             ),
                           ),
-                          Text(
-                            'Gestão completa da fazenda',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Colors.white.withValues(alpha: 0.8),
-                            ),
+                          Consumer<FazendaProvider>(
+                            builder: (context, provider, child) {
+                              if (provider.loading) {
+                                return const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                );
+                              }
+                              
+                              if (provider.fazendas.isEmpty) {
+                                return Text(
+                                  'Nenhuma fazenda cadastrada',
+                                  style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 13),
+                                );
+                              }
+
+                              return DropdownButtonHideUnderline(
+                                child: DropdownButton<Fazenda>(
+                                  isExpanded: true,
+                                  hint: const Text(
+                                    'Selecione...',
+                                    style: TextStyle(color: Colors.white, fontSize: 14),
+                                  ),
+                                  value: provider.fazendas.contains(provider.fazendaSelecionada)
+                                      ? provider.fazendaSelecionada
+                                      : null,
+                                  dropdownColor: const Color(0xFF2E7D32),
+                                  icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  onChanged: (Fazenda? novaFazenda) {
+                                    if (novaFazenda != null) {
+                                      provider.selecionarFazenda(novaFazenda);
+                                      _carregarPendentes();
+                                      _iniciarListenerNotificacoes();
+                                    }
+                                  },
+                                  items: provider.fazendas.map((Fazenda fazenda) {
+                                    return DropdownMenuItem<Fazenda>(
+                                      value: fazenda,
+                                      child: Text(fazenda.nome),
+                                    );
+                                  }).toList(),
+                                ),
+                              );
+                            },
                           ),
                         ],
                       ),
                     ),
+                    IconButton(
+                      onPressed: () => Navigator.pushNamed(context, '/gerenciar-fazendas'),
+                      icon: const Icon(Icons.agriculture, color: Colors.white),
+                      tooltip: 'Minhas Fazendas',
+                    ),
+                    const SizedBox(width: 4),
                     // Ícone de Notificações (Sino)
                     _buildNotificacaoBadge(),
                     const SizedBox(width: 4),
@@ -198,6 +275,7 @@ class _GestorDashboardScreenState extends State<GestorDashboardScreen> {
                               onTap: () => Navigator.pushNamed(context, '/historico-abastecimentos'),
                               gradient: AppTheme.accentGradient,
                             ),
+                            // Cartões do menu removidos: 'Minhas Fazendas' movido para o topo e 'Centro de Custos' removido conforme solicitação.
                           ],
                         ),
                       ],
@@ -266,11 +344,12 @@ class _GestorDashboardScreenState extends State<GestorDashboardScreen> {
 
 
   /// Abre a tela de notificações / solicitações pendentes e marca como lidas
-  void _abrirNotificacoes(  ) async {
+  void _abrirNotificacoes() async {
     // Marcar todas como lidas ao abrir
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid != null) {
-      await _notificacaoService.marcarTodasComoLidas(uid);
+    final fazenda = context.read<FazendaProvider>().fazendaSelecionada;
+    if (uid != null && fazenda != null) {
+      await _notificacaoService.marcarTodasComoLidas(uid, fazenda.id);
     }
     if (!mounted) return;
     await Navigator.pushNamed(context, '/solicitacoes-pendentes');

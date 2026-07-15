@@ -5,9 +5,12 @@ class AbastecimentoService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   CollectionReference get _collection => _firestore.collection('abastecimentos');
 
-  /// Stream em tempo real de todos os abastecimentos
-  Stream<List<Abastecimento>> obterAbastecimentos() {
-    return _collection.snapshots().map((snapshot) {
+  /// Stream em tempo real de todos os abastecimentos de uma fazenda
+  Stream<List<Abastecimento>> obterAbastecimentos(String fazendaId) {
+    return _collection
+        .where('fazenda_id', isEqualTo: fazendaId)
+        .snapshots()
+        .map((snapshot) {
       return snapshot.docs.map((doc) => Abastecimento.fromFirestore(doc)).toList();
     });
   }

@@ -16,6 +16,10 @@ class AuthProvider extends ChangeNotifier {
   String _mensagemErro = '';
   String get mensagemErro => _mensagemErro;
 
+  /// ID da fazenda ativa selecionada pelo funcionário
+  String? _fazendaAtivaId;
+  String? get fazendaAtivaId => _fazendaAtivaId ?? _usuario?.fazendaId;
+
   /// Login
   Future<void> login(String email, String senha) async {
     if (email.trim().isEmpty || senha.trim().isEmpty) {
@@ -31,6 +35,10 @@ class AuthProvider extends ChangeNotifier {
     try {
       _usuario = await _authService.login(email.trim(), senha.trim());
       _estado = EstadoLogin.sucesso;
+      // Inicializar fazenda ativa como a primeira da lista
+      if (_usuario != null && _usuario!.fazendasIds.isNotEmpty) {
+        _fazendaAtivaId = _usuario!.fazendasIds.first;
+      }
     } catch (e) {
       _estado = EstadoLogin.erro;
       _mensagemErro = e.toString().replaceAll('Exception: ', '');
@@ -70,6 +78,7 @@ class AuthProvider extends ChangeNotifier {
     _authService.logout();
     _estado = EstadoLogin.inicial;
     _usuario = null;
+    _fazendaAtivaId = null;
     notifyListeners();
   }
 
@@ -85,7 +94,27 @@ class AuthProvider extends ChangeNotifier {
   void resetar() {
     _estado = EstadoLogin.inicial;
     _usuario = null;
+    _fazendaAtivaId = null;
     _mensagemErro = '';
+    notifyListeners();
+  }
+
+  /// Atualizar fazendaId no objeto local do usuário (após vincular nova fazenda)
+  void adicionarFazendaVinculada(String fazendaId) {
+    if (_usuario != null) {
+      final novaLista = List<String>.from(_usuario!.fazendasIds);
+      if (!novaLista.contains(fazendaId)) {
+        novaLista.add(fazendaId);
+      }
+      _usuario = _usuario!.copyWith(fazendasIds: novaLista);
+      _fazendaAtivaId = fazendaId;
+      notifyListeners();
+    }
+  }
+
+  /// Selecionar fazenda ativa (para funcionários com múltiplas fazendas)
+  void selecionarFazendaAtiva(String fazendaId) {
+    _fazendaAtivaId = fazendaId;
     notifyListeners();
   }
 

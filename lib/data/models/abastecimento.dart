@@ -10,6 +10,7 @@ class Abastecimento {
   final String aplicacao;
   final String? usuarioUid;
   final String? fotoComprovante; // Base64 da foto do comprovante
+  final String? fazendaId;
 
   Abastecimento({
     this.id = '',
@@ -21,6 +22,7 @@ class Abastecimento {
     this.aplicacao = '',
     this.usuarioUid,
     this.fotoComprovante,
+    this.fazendaId,
   });
 
   factory Abastecimento.fromFirestore(DocumentSnapshot doc) {
@@ -35,6 +37,7 @@ class Abastecimento {
       aplicacao: data['aplicacao'] ?? '',
       usuarioUid: data['usuario_uid'],
       fotoComprovante: data['foto_comprovante'],
+      fazendaId: data['fazenda_id'],
     );
   }
 
@@ -48,6 +51,7 @@ class Abastecimento {
       'aplicacao': aplicacao,
       'usuario_uid': usuarioUid,
       'foto_comprovante': fotoComprovante,
+      'fazenda_id': fazendaId,
     };
   }
 }

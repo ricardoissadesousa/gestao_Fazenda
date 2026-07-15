@@ -7,6 +7,7 @@ class Animal {
   final String sexo;
   final String nascimento;
   final String mae;
+  final String? fazendaId;
 
   Animal({
     this.id = '',
@@ -15,6 +16,7 @@ class Animal {
     this.sexo = '',
     this.nascimento = '',
     this.mae = '',
+    this.fazendaId,
   });
 
   factory Animal.fromFirestore(DocumentSnapshot doc) {
@@ -26,6 +28,7 @@ class Animal {
       sexo: data['sexo'] ?? '',
       nascimento: data['nascimento'] ?? '',
       mae: data['mae'] ?? '',
+      fazendaId: data['fazenda_id'],
     );
   }
 
@@ -36,6 +39,7 @@ class Animal {
       'sexo': sexo,
       'nascimento': nascimento,
       'mae': mae,
+      'fazenda_id': fazendaId,
     };
   }
 
@@ -46,6 +50,7 @@ class Animal {
     String? sexo,
     String? nascimento,
     String? mae,
+    String? fazendaId,
   }) {
     return Animal(
       id: id ?? this.id,
@@ -54,6 +59,7 @@ class Animal {
       sexo: sexo ?? this.sexo,
       nascimento: nascimento ?? this.nascimento,
       mae: mae ?? this.mae,
+      fazendaId: fazendaId ?? this.fazendaId,
     );
   }
 }

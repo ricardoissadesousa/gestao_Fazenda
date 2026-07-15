@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import '../core/app_theme.dart';
 import '../data/models/animal.dart';
 import '../data/services/animal_service.dart';
+
 import '../widgets/loading_button.dart';
+import '../core/utils/fazenda_helper.dart';
 import 'package:intl/intl.dart';
 
 class RegistrarNascimentoScreen extends StatefulWidget {
@@ -194,9 +196,16 @@ class _RegistrarNascimentoScreenState extends State<RegistrarNascimentoScreen> {
 
     setState(() => _loading = true);
 
+    final fazendaId = FazendaHelper.obterFazendaIdAtual(context);
+    if (!FazendaHelper.validarFazendaAtiva(context, fazendaId)) {
+      setState(() => _loading = false);
+      return;
+    }
+
     // Verificar unicidade de número
     final numExiste = await _service.numeroExiste(
       numero,
+      fazendaId!,
       excluirId: widget.animalParaEditar?.id,
     );
     if (numExiste) {
@@ -208,6 +217,7 @@ class _RegistrarNascimentoScreenState extends State<RegistrarNascimentoScreen> {
     // Verificar unicidade de nome
     final nomeExiste = await _service.nomeExiste(
       nome,
+      fazendaId,
       excluirId: widget.animalParaEditar?.id,
     );
     if (nomeExiste) {
@@ -224,6 +234,7 @@ class _RegistrarNascimentoScreenState extends State<RegistrarNascimentoScreen> {
       sexo: _sexoSelecionado,
       nascimento: data,
       mae: mae,
+      fazendaId: fazendaId,
     );
 
     try {

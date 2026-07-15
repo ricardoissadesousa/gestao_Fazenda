@@ -13,6 +13,9 @@ import '../screens/historico_abastecimentos_screen.dart';
 import '../screens/controle_folgas_screen.dart';
 import '../screens/solicitacoes_pendentes_screen.dart';
 import '../screens/historico_solicitacoes_screen.dart';
+import '../screens/gerenciar_fazendas_screen.dart';
+
+import '../screens/vincular_fazenda_screen.dart';
 
 class AppRoutes {
   static const String roleSelection = '/';
@@ -29,6 +32,10 @@ class AppRoutes {
   static const String controleFolgas = '/controle-folgas';
   static const String solicitacoesPendentes = '/solicitacoes-pendentes';
   static const String historicoSolicitacoes = '/historico-solicitacoes';
+  // Novas rotas
+  static const String gerenciarFazendas = '/gerenciar-fazendas';
+
+  static const String vincularFazenda = '/vincular-fazenda';
 
   static Map<String, WidgetBuilder> get routes {
     return {
@@ -55,6 +62,9 @@ class AppRoutes {
       controleFolgas: (_) => const ControleFolgasScreen(),
       solicitacoesPendentes: (_) => const SolicitacoesPendentesScreen(),
       historicoSolicitacoes: (_) => const HistoricoSolicitacoesScreen(),
+      // Novas rotas
+      gerenciarFazendas: (_) => const GerenciarFazendasScreen(),
+      vincularFazenda: (_) => const VincularFazendaScreen(),
     };
   }
 }

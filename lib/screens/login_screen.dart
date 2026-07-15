@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../core/app_theme.dart';
 import '../providers/auth_provider.dart';
+import '../providers/fazenda_provider.dart';
 import '../data/models/usuario.dart';
 import '../widgets/loading_button.dart';
 
@@ -32,11 +33,22 @@ class _LoginScreenState extends State<LoginScreen> {
 
     // Observar estado do login
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
+
       if (authProvider.estado == EstadoLogin.sucesso && authProvider.usuario != null) {
         final tipoEsperado = isGestor ? TipoUsuario.GESTOR : TipoUsuario.FUNCIONARIO;
         if (authProvider.usuario!.tipo == tipoEsperado) {
-          final route = isGestor ? '/gestor' : '/funcionario';
-          Navigator.pushNamedAndRemoveUntil(context, route, (r) => false);
+          if (tipoEsperado == TipoUsuario.FUNCIONARIO && 
+              authProvider.usuario!.fazendasIds.isEmpty) {
+            Navigator.pushNamedAndRemoveUntil(context, '/vincular-fazenda', (r) => false);
+          } else {
+            if (isGestor) {
+              // Recarregar fazendas com UID correto do gestor logado
+              context.read<FazendaProvider>().carregarFazendas();
+            }
+            final route = isGestor ? '/gestor' : '/funcionario';
+            Navigator.pushNamedAndRemoveUntil(context, route, (r) => false);
+          }
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(

@@ -1,8 +1,10 @@
+
 import 'package:flutter/material.dart';
 import '../core/app_theme.dart';
 import '../data/services/producao_leite_service.dart';
-import '../data/services/configuracao_service.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+import '../providers/fazenda_provider.dart';
 
 class RelatorioMensalScreen extends StatefulWidget {
   const RelatorioMensalScreen({super.key});
@@ -13,7 +15,6 @@ class RelatorioMensalScreen extends StatefulWidget {
 
 class _RelatorioMensalScreenState extends State<RelatorioMensalScreen> {
   final _producaoService = ProducaoLeiteService();
-  final _configService = ConfiguracaoService();
 
   final _meses = [
     'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -21,6 +22,7 @@ class _RelatorioMensalScreenState extends State<RelatorioMensalScreen> {
   ];
 
   int _mesSelecionado = DateTime.now().month - 1;
+  int _anoSelecionado = DateTime.now().year;
   double _precoLeite = 2.85;
   double _totalLitros = 0.0;
   double _mediaDiaria = 0.0;
@@ -33,24 +35,49 @@ class _RelatorioMensalScreenState extends State<RelatorioMensalScreen> {
   }
 
   Future<void> _carregarDados() async {
+    if (!mounted) return;
     setState(() => _loading = true);
-    _precoLeite = await _configService.obterPrecoLeite();
-    await _carregarRelatorio();
-    setState(() => _loading = false);
+    try {
+      await _carregarRelatorio();
+    } catch (e) {
+      debugPrint('Erro no relatório: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Erro ao carregar relatório.')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
+    }
   }
 
   Future<void> _carregarRelatorio() async {
-    final ano = DateTime.now().year;
-    final producoes = await _producaoService.obterProducoesPorMes(_mesSelecionado + 1, ano);
+    final mes = _mesSelecionado + 1;
+    final ano = _anoSelecionado;
+
+    // Extrair fazenda antes do await
+    final fazenda = context.read<FazendaProvider>().fazendaSelecionada;
+    if (fazenda == null) {
+      return;
+    }
+
+    // Buscar preço específico do período
+    _precoLeite = await _producaoService.obterPrecoLeitePorPeriodo(fazenda.id, mes, ano);
+
+    final producoes = await _producaoService.obterProducoesPorMes(mes, ano, fazenda.id);
     double total = 0.0;
     for (var p in producoes) {
       total += p.totalLitros;
     }
     final diasComRegistro = producoes.length;
-    setState(() {
-      _totalLitros = total;
-      _mediaDiaria = diasComRegistro > 0 ? total / diasComRegistro : 0.0;
-    });
+    if (mounted) {
+      setState(() {
+        _totalLitros = total;
+        _mediaDiaria = diasComRegistro > 0 ? total / diasComRegistro : 0.0;
+      });
+    }
   }
 
   @override
@@ -63,14 +90,17 @@ class _RelatorioMensalScreenState extends State<RelatorioMensalScreen> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                children: [
-                  // Seletor de mês
-                  GestureDetector(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          children: [
+            // Seletores de mês e ano
+            Row(
+              children: [
+                // Seletor de mês
+                Expanded(
+                  child: GestureDetector(
                     onTap: _selecionarMes,
                     child: Container(
-                      width: double.infinity,
                       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                       decoration: BoxDecoration(
                         color: Colors.white,
@@ -89,41 +119,70 @@ class _RelatorioMensalScreenState extends State<RelatorioMensalScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 24),
-                  // Cards de resumo
-                  _buildStatCard(
-                    icon: Icons.water_drop,
-                    title: 'Total Produzido',
-                    value: '${NumberFormat('#,##0', 'pt_BR').format(_totalLitros)} L',
-                    color: const Color(0xFF1565C0),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildStatCard(
-                    icon: Icons.trending_up,
-                    title: 'Média Diária',
-                    value: '${NumberFormat('#,##0', 'pt_BR').format(_mediaDiaria)} L',
-                    color: AppTheme.primary,
-                  ),
-                  const SizedBox(height: 12),
-                  GestureDetector(
-                    onTap: _editarPreco,
-                    child: _buildStatCard(
-                      icon: Icons.attach_money,
-                      title: 'Preço do Leite (toque para editar)',
-                      value: nf.format(_precoLeite),
-                      color: AppTheme.gold,
+                ),
+                const SizedBox(width: 12),
+                // Seletor de ano
+                SizedBox(
+                  width: 110,
+                  child: GestureDetector(
+                    onTap: _selecionarAno,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppTheme.divider),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            '$_anoSelecionado',
+                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                          ),
+                          const Icon(Icons.keyboard_arrow_down),
+                        ],
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  _buildStatCard(
-                    icon: Icons.account_balance_wallet,
-                    title: 'Faturamento Estimado',
-                    value: nf.format(faturamento),
-                    color: const Color(0xFF6A1B9A),
-                  ),
-                ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            // Cards de resumo
+            _buildStatCard(
+              icon: Icons.water_drop,
+              title: 'Total Produzido',
+              value: '${NumberFormat('#,##0', 'pt_BR').format(_totalLitros)} L',
+              color: const Color(0xFF1565C0),
+            ),
+            const SizedBox(height: 12),
+            _buildStatCard(
+              icon: Icons.trending_up,
+              title: 'Média Diária',
+              value: '${NumberFormat('#,##0', 'pt_BR').format(_mediaDiaria)} L',
+              color: AppTheme.primary,
+            ),
+            const SizedBox(height: 12),
+            GestureDetector(
+              onTap: _editarPreco,
+              child: _buildStatCard(
+                icon: Icons.attach_money,
+                title: 'Preço do Leite — ${_meses[_mesSelecionado]}/$_anoSelecionado (toque para editar)',
+                value: nf.format(_precoLeite),
+                color: AppTheme.gold,
               ),
             ),
+            const SizedBox(height: 12),
+            _buildStatCard(
+              icon: Icons.account_balance_wallet,
+              title: 'Faturamento Estimado',
+              value: nf.format(faturamento),
+              color: const Color(0xFF6A1B9A),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -193,7 +252,7 @@ class _RelatorioMensalScreenState extends State<RelatorioMensalScreen> {
             onPressed: () {
               Navigator.pop(context);
               setState(() => _mesSelecionado = index);
-              _carregarRelatorio();
+              _carregarDados();
             },
             child: Text(
               _meses[index],
@@ -208,19 +267,56 @@ class _RelatorioMensalScreenState extends State<RelatorioMensalScreen> {
     );
   }
 
+  void _selecionarAno() {
+    final anoAtual = DateTime.now().year;
+    final anos = List.generate(7, (i) => anoAtual - 5 + i);
+    showDialog(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: const Text('Selecione o Ano'),
+        children: anos.map((ano) {
+          return SimpleDialogOption(
+            onPressed: () {
+              Navigator.pop(context);
+              setState(() => _anoSelecionado = ano);
+              _carregarDados();
+            },
+            child: Text(
+              '$ano',
+              style: TextStyle(
+                fontWeight: ano == _anoSelecionado ? FontWeight.w700 : FontWeight.w400,
+                color: ano == _anoSelecionado ? AppTheme.primary : null,
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
   void _editarPreco() {
     final controller = TextEditingController(text: _precoLeite.toStringAsFixed(2));
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Alterar Preço do Leite'),
-        content: TextField(
-          controller: controller,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: const InputDecoration(
-            hintText: 'Ex: 3.10',
-            prefixText: 'R\$ ',
-          ),
+        title: Text('Preço do Leite — ${_meses[_mesSelecionado]}/$_anoSelecionado'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'O preço será salvo especificamente para ${_meses[_mesSelecionado]} de $_anoSelecionado.',
+              style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                hintText: 'Ex: 3.10',
+                prefixText: 'R\$ ',
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -229,14 +325,26 @@ class _RelatorioMensalScreenState extends State<RelatorioMensalScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
+              final fazenda = context.read<FazendaProvider>().fazendaSelecionada;
+              if (fazenda == null) return;
+              
               final valor = double.tryParse(controller.text.replaceAll(',', '.'));
               if (valor != null && valor > 0) {
-                await _configService.salvarPrecoLeite(valor);
+                await _producaoService.atualizarPrecoLeite(
+                  fazenda.id,
+                  valor,
+                  mes: _mesSelecionado + 1,
+                  ano: _anoSelecionado,
+                );
                 setState(() => _precoLeite = valor);
                 if (context.mounted) {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Preço salvo na nuvem!')),
+                    SnackBar(
+                      content: Text(
+                        'Preço de ${_meses[_mesSelecionado]}/$_anoSelecionado salvo!',
+                      ),
+                    ),
                   );
                 }
               }

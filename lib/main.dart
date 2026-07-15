@@ -11,6 +11,7 @@ import 'providers/animal_provider.dart';
 import 'providers/producao_provider.dart';
 import 'providers/abastecimento_provider.dart';
 import 'providers/folga_provider.dart';
+import 'providers/fazenda_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -31,6 +32,7 @@ class GestaoFazendaApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ProducaoProvider()),
         ChangeNotifierProvider(create: (_) => AbastecimentoProvider()),
         ChangeNotifierProvider(create: (_) => FolgaProvider()),
+        ChangeNotifierProvider(create: (_) => FazendaProvider()),
       ],
       child: MaterialApp(
         title: 'Gestão de Fazenda',

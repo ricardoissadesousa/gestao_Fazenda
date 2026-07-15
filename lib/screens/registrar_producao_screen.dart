@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../core/app_theme.dart';
 import '../providers/producao_provider.dart';
 import '../widgets/loading_button.dart';
+import '../core/utils/fazenda_helper.dart';
 
 class RegistrarProducaoScreen extends StatefulWidget {
   const RegistrarProducaoScreen({super.key});
@@ -124,7 +125,11 @@ class _RegistrarProducaoScreenState extends State<RegistrarProducaoScreen> {
                 final valores = _controllers
                     .map((c) => double.tryParse(c.text) ?? 0.0)
                     .toList();
-                final ok = await provider.salvarProducao(valores);
+                
+                final fazendaId = FazendaHelper.obterFazendaIdAtual(context);
+                if (!FazendaHelper.validarFazendaAtiva(context, fazendaId)) return;
+
+                final ok = await provider.salvarProducao(valores, fazendaId!);
                 if (!context.mounted) return;
                 if (ok) {
                   ScaffoldMessenger.of(context).showSnackBar(
