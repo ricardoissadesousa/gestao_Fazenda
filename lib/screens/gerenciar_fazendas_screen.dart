@@ -290,14 +290,25 @@ class _GerenciarFazendasScreenState extends State<GerenciarFazendasScreen> {
               }
 
               if (context.mounted) {
+                final messenger = ScaffoldMessenger.of(context);
                 Navigator.pop(context);
                 if (ok) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  messenger.showSnackBar(
                     SnackBar(
                       content: Text(isEditing
                           ? 'Fazenda atualizada!'
                           : 'Fazenda criada! Compartilhe o código com seus funcionários.'),
                       backgroundColor: AppTheme.aprovada,
+                    ),
+                  );
+                } else {
+                  messenger.showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        provider.erro ??
+                            'Não foi possível salvar a fazenda. Tente novamente.',
+                      ),
+                      backgroundColor: AppTheme.reprovada,
                     ),
                   );
                 }
@@ -328,11 +339,22 @@ class _GerenciarFazendasScreenState extends State<GerenciarFazendasScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              await provider.desativarFazenda(fazenda.id);
+              final ok = await provider.desativarFazenda(fazenda.id);
               if (context.mounted) {
+                final messenger = ScaffoldMessenger.of(context);
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Fazenda removida.')),
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      ok
+                          ? 'Fazenda removida.'
+                          : provider.erro ??
+                                'Não foi possível remover a fazenda.',
+                    ),
+                    backgroundColor: ok
+                        ? AppTheme.aprovada
+                        : AppTheme.reprovada,
+                  ),
                 );
               }
             },
@@ -367,12 +389,23 @@ class _GerenciarFazendasScreenState extends State<GerenciarFazendasScreen> {
             onPressed: () async {
               final novoCodigo = await provider.regenerarCodigo(fazenda.id);
               if (context.mounted) {
+                final messenger = ScaffoldMessenger.of(context);
                 Navigator.pop(context);
                 if (novoCodigo != null) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  messenger.showSnackBar(
                     SnackBar(
                       content: Text('Novo código gerado: $novoCodigo'),
                       backgroundColor: AppTheme.aprovada,
+                    ),
+                  );
+                } else {
+                  messenger.showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        provider.erro ??
+                            'Não foi possível gerar um novo código.',
+                      ),
+                      backgroundColor: AppTheme.reprovada,
                     ),
                   );
                 }

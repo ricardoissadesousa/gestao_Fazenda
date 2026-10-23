@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../core/utils/app_error_messages.dart';
 import '../data/models/animal.dart';
 import '../data/services/animal_service.dart';
 
@@ -27,15 +28,20 @@ class AnimalProvider extends ChangeNotifier {
   void carregarAnimaisFazenda(String fazendaId) {
     _subscription?.cancel();
     _loading = true;
+    _erro = null;
     notifyListeners();
 
     _subscription = _service.obterAnimais(fazendaId).listen((lista) {
       _listaCompleta = lista;
       _aplicarFiltros();
       _loading = false;
+      _erro = null;
       notifyListeners();
     }, onError: (e) {
-      _erro = e.toString();
+      _erro = AppErrorMessages.from(
+        e,
+        fallback: 'Não foi possível carregar os animais. Tente novamente.',
+      );
       _loading = false;
       notifyListeners();
     });
@@ -94,12 +100,18 @@ class AnimalProvider extends ChangeNotifier {
     _animaisFiltrados = lista;
   }
 
-  Future<void> excluirAnimal(Animal animal) async {
+  Future<bool> excluirAnimal(Animal animal) async {
     try {
       await _service.excluirAnimal(animal);
+      _erro = null;
+      return true;
     } catch (e) {
-      _erro = e.toString();
+      _erro = AppErrorMessages.from(
+        e,
+        fallback: 'Não foi possível excluir o animal. Tente novamente.',
+      );
       notifyListeners();
+      return false;
     }
   }
 
@@ -107,8 +119,16 @@ class AnimalProvider extends ChangeNotifier {
     try {
       await _service.atualizarAnimal(animal);
     } catch (e) {
-      _erro = e.toString();
+      _erro = AppErrorMessages.from(
+        e,
+        fallback: 'Não foi possível atualizar o animal. Tente novamente.',
+      );
       notifyListeners();
     }
+  }
+
+  void limparErro() {
+    _erro = null;
+    notifyListeners();
   }
 }

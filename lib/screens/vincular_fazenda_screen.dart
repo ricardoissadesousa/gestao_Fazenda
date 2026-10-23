@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../core/app_theme.dart';
+import '../core/utils/app_error_messages.dart';
 import '../data/services/auth_service.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/loading_button.dart';
@@ -59,10 +60,14 @@ class _VincularFazendaScreenState extends State<VincularFazendaScreen> {
     } catch (e) {
       setState(() => _loading = false);
       if (!mounted) return;
-      final mensagem = e.toString().replaceAll('Exception: ', '');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(mensagem),
+          content: Text(
+            AppErrorMessages.from(
+              e,
+              fallback: 'Não foi possível vincular a fazenda. Tente novamente.',
+            ),
+          ),
           backgroundColor: AppTheme.reprovada,
         ),
       );

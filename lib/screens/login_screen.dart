@@ -1,6 +1,8 @@
+import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../core/app_theme.dart';
+import '../core/utils/app_error_messages.dart';
 import '../providers/auth_provider.dart';
 import '../providers/fazenda_provider.dart';
 import '../data/models/usuario.dart';
@@ -35,12 +37,19 @@ class _LoginScreenState extends State<LoginScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
 
-      if (authProvider.estado == EstadoLogin.sucesso && authProvider.usuario != null) {
-        final tipoEsperado = isGestor ? TipoUsuario.GESTOR : TipoUsuario.FUNCIONARIO;
+      if (authProvider.estado == EstadoLogin.sucesso &&
+          authProvider.usuario != null) {
+        final tipoEsperado = isGestor
+            ? TipoUsuario.GESTOR
+            : TipoUsuario.FUNCIONARIO;
         if (authProvider.usuario!.tipo == tipoEsperado) {
-          if (tipoEsperado == TipoUsuario.FUNCIONARIO && 
+          if (tipoEsperado == TipoUsuario.FUNCIONARIO &&
               authProvider.usuario!.fazendasIds.isEmpty) {
-            Navigator.pushNamedAndRemoveUntil(context, '/vincular-fazenda', (r) => false);
+            Navigator.pushNamedAndRemoveUntil(
+              context,
+              '/vincular-fazenda',
+              (r) => false,
+            );
           } else {
             if (isGestor) {
               // Recarregar fazendas com UID correto do gestor logado
@@ -52,7 +61,9 @@ class _LoginScreenState extends State<LoginScreen> {
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Acesso negado. Você não tem permissão de ${widget.funcao}.'),
+              content: Text(
+                'Acesso negado. Você não tem permissão de ${widget.funcao}.',
+              ),
               backgroundColor: AppTheme.reprovada,
             ),
           );
@@ -93,7 +104,10 @@ class _LoginScreenState extends State<LoginScreen> {
                             authProvider.resetar();
                             Navigator.pop(context);
                           },
-                          icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
+                          icon: const Icon(
+                            Icons.arrow_back_ios,
+                            color: Colors.white,
+                          ),
                         ),
                       ],
                     ),
@@ -175,7 +189,9 @@ class _LoginScreenState extends State<LoginScreen> {
                             prefixIcon: const Icon(Icons.lock_outline),
                             suffixIcon: IconButton(
                               icon: Icon(
-                                _senhaVisivel ? Icons.visibility_off : Icons.visibility,
+                                _senhaVisivel
+                                    ? Icons.visibility_off
+                                    : Icons.visibility,
                               ),
                               onPressed: () {
                                 setState(() => _senhaVisivel = !_senhaVisivel);
@@ -183,10 +199,18 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                         ),
-                        const SizedBox(height: 32),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: _abrirRecuperacaoSenha,
+                            child: const Text('Esqueceu a senha?'),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
                         LoadingButton(
                           text: 'Entrar',
-                          isLoading: authProvider.estado == EstadoLogin.carregando,
+                          isLoading:
+                              authProvider.estado == EstadoLogin.carregando,
                           onPressed: () {
                             authProvider.login(
                               _emailController.text,
@@ -233,4 +257,129 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
+
+  Future<void> _abrirRecuperacaoSenha() async {
+    var emailDigitado = _emailController.text.trim();
+    var enviando = false;
+    String? mensagemErro;
+
+    final emailEnviado = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Recuperar senha'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Informe o e-mail cadastrado. Enviaremos um link para você criar uma nova senha.',
+                style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                initialValue: emailDigitado,
+                onChanged: (valor) => emailDigitado = valor,
+                enabled: !enviando,
+                autofocus: emailDigitado.isEmpty,
+                keyboardType: TextInputType.emailAddress,
+                textInputAction: TextInputAction.done,
+                decoration: InputDecoration(
+                  labelText: 'E-mail',
+                  hintText: 'seu@email.com',
+                  prefixIcon: const Icon(Icons.email_outlined),
+                  errorText: mensagemErro,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: enviando
+                  ? null
+                  : () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: enviando
+                  ? null
+                  : () async {
+                      final email = emailDigitado.trim();
+                      if (!_emailValido(email)) {
+                        setDialogState(
+                          () => mensagemErro = 'Informe um e-mail válido.',
+                        );
+                        return;
+                      }
+
+                      setDialogState(() {
+                        enviando = true;
+                        mensagemErro = null;
+                      });
+
+                      try {
+                        await this.context
+                            .read<AuthProvider>()
+                            .enviarEmailRedefinicaoSenha(email);
+                        if (!dialogContext.mounted) return;
+                        Navigator.pop(dialogContext, true);
+                      } on FirebaseAuthException catch (erro) {
+                        if (!dialogContext.mounted) return;
+
+                        // Com protecao contra enumeracao de e-mails, o Firebase
+                        // normalmente retorna sucesso mesmo para conta ausente.
+                        if (erro.code == 'user-not-found') {
+                          Navigator.pop(dialogContext, true);
+                          return;
+                        }
+
+                        setDialogState(() {
+                          enviando = false;
+                          mensagemErro = AppErrorMessages.auth(
+                            erro,
+                            AuthOperation.recuperacaoSenha,
+                          );
+                        });
+                      } catch (_) {
+                        if (!dialogContext.mounted) return;
+                        setDialogState(() {
+                          enviando = false;
+                          mensagemErro =
+                              'Não foi possível enviar o e-mail. Tente novamente.';
+                        });
+                      }
+                    },
+              child: enviando
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Text('Enviar link'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (emailEnviado == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Se existir uma conta com esse e-mail, o link para redefinir a senha foi enviado. Verifique também a caixa de spam.',
+          ),
+          backgroundColor: AppTheme.aprovada,
+        ),
+      );
+    }
+  }
+
+  bool _emailValido(String email) {
+    return RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email);
+  }
+
 }

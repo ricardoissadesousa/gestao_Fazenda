@@ -141,7 +141,35 @@ class _ListaAnimaisScreenState extends State<ListaAnimaisScreen> {
           const SizedBox(height: 8),
           // Lista
           Expanded(
-            child: provider.animais.isEmpty
+            child: provider.erro != null && provider.animais.isEmpty
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.error_outline,
+                            size: 56,
+                            color: AppTheme.reprovada,
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            provider.erro!,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: AppTheme.textSecondary),
+                          ),
+                          const SizedBox(height: 12),
+                          OutlinedButton.icon(
+                            onPressed: _carregarAnimais,
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('Tentar novamente'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                : provider.animais.isEmpty
                 ? Center(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -182,11 +210,24 @@ class _ListaAnimaisScreenState extends State<ListaAnimaisScreen> {
                                   child: const Text('Cancelar'),
                                 ),
                                 ElevatedButton(
-                                  onPressed: () {
-                                    provider.excluirAnimal(animal);
+                                  onPressed: () async {
+                                    final ok = await provider.excluirAnimal(
+                                      animal,
+                                    );
+                                    if (!context.mounted) return;
                                     Navigator.pop(ctx);
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Animal excluído com sucesso.')),
+                                      SnackBar(
+                                        content: Text(
+                                          ok
+                                              ? 'Animal excluído com sucesso.'
+                                              : provider.erro ??
+                                                    'Não foi possível excluir o animal.',
+                                        ),
+                                        backgroundColor: ok
+                                            ? AppTheme.aprovada
+                                            : AppTheme.reprovada,
+                                      ),
                                     );
                                   },
                                   style: ElevatedButton.styleFrom(

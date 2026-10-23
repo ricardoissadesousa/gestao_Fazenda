@@ -1,0 +1,152 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function autenticado() {
+      return request.auth != null;
+    }
+
+    function ehProprietario(fazendaId) {
+      return autenticado()
+        && fazendaId is string
+        && exists(/databases/$(database)/documents/fazendas/$(fazendaId))
+        && get(/databases/$(database)/documents/fazendas/$(fazendaId))
+          .data.proprietario_id == request.auth.uid;
+    }
+
+    function estaVinculado(fazendaId) {
+      return autenticado()
+        && fazendaId is string
+        && exists(/databases/$(database)/documents/usuarios/$(request.auth.uid))
+        && (
+          fazendaId in get(
+            /databases/$(database)/documents/usuarios/$(request.auth.uid)
+          ).data.get('fazendas_ids', [])
+          || get(
+            /databases/$(database)/documents/usuarios/$(request.auth.uid)
+          ).data.get('fazenda_id', '') == fazendaId
+        );
+    }
+
+    function acessaFazenda(fazendaId) {
+      return ehProprietario(fazendaId) || estaVinculado(fazendaId);
+    }
+
+    function mantemFazenda() {
+      return request.resource.data.fazenda_id == resource.data.fazenda_id;
+    }
+
+    match /usuarios/{usuarioId} {
+      allow read, create: if autenticado()
+        && request.auth.uid == usuarioId;
+      allow update: if autenticado()
+        && request.auth.uid == usuarioId
+        && request.resource.data.diff(resource.data)
+          .affectedKeys().hasOnly(['fazendas_ids', 'fazenda_id']);
+      allow delete: if false;
+    }
+
+    match /fazendas/{fazendaId} {
+      // A leitura autenticada mantem o fluxo atual de vinculo por codigo.
+      allow read: if autenticado();
+      allow create: if autenticado()
+        && request.resource.data.proprietario_id == request.auth.uid;
+      allow update: if ehProprietario(fazendaId)
+        && request.resource.data.proprietario_id
+          == resource.data.proprietario_id;
+      allow delete: if false;
+    }
+
+    match /animais/{animalId} {
+      allow read: if acessaFazenda(resource.data.fazenda_id);
+      allow create: if acessaFazenda(request.resource.data.fazenda_id);
+      allow update: if ehProprietario(resource.data.fazenda_id)
+        && mantemFazenda();
+      allow delete: if ehProprietario(resource.data.fazenda_id);
+    }
+
+    match /abastecimentos/{abastecimentoId} {
+      allow read: if acessaFazenda(resource.data.fazenda_id);
+      allow create: if acessaFazenda(request.resource.data.fazenda_id)
+        && request.resource.data.usuario_uid == request.auth.uid;
+      allow update: if ehProprietario(resource.data.fazenda_id)
+        && mantemFazenda();
+      allow delete: if ehProprietario(resource.data.fazenda_id);
+    }
+
+    match /abastecimentos/{fazendaId}/veiculos/{veiculoId} {
+      allow read: if acessaFazenda(fazendaId);
+      allow create, update: if acessaFazenda(fazendaId)
+        && request.resource.data.nome is string
+        && request.resource.data.nome.size() > 0
+        && request.resource.data.fazenda_id == fazendaId;
+      allow delete: if ehProprietario(fazendaId);
+    }
+
+    match /producao_leite/{producaoId} {
+      allow read: if acessaFazenda(resource.data.fazenda_id);
+      allow create: if acessaFazenda(request.resource.data.fazenda_id)
+        && request.resource.data.usuario_id == request.auth.uid;
+      allow update: if ehProprietario(resource.data.fazenda_id)
+        && mantemFazenda();
+      allow delete: if ehProprietario(resource.data.fazenda_id);
+    }
+
+    match /producao_leite/{fazendaId}/preco_do_leite/{periodoId} {
+      allow read: if acessaFazenda(fazendaId);
+      allow create, update: if ehProprietario(fazendaId)
+        && request.resource.data.preco is number
+        && request.resource.data.preco > 0
+        && request.resource.data.mes is int
+        && request.resource.data.mes >= 1
+        && request.resource.data.mes <= 12
+        && request.resource.data.ano is int
+        && request.resource.data.fazenda_id == fazendaId;
+      allow delete: if ehProprietario(fazendaId);
+    }
+
+    // Caminho criado pela versao intermediaria. Fica disponivel apenas para
+    // leitura e limpeza durante a migracao para `preco_do_leite`.
+    match /producao_leite/{fazendaId}/historico_precos/{periodoId} {
+      allow read: if acessaFazenda(fazendaId);
+      allow delete: if ehProprietario(fazendaId);
+      allow create, update: if false;
+    }
+
+    match /comunicacoes/{comunicacaoId} {
+      allow read: if acessaFazenda(resource.data.fazenda_id)
+        && (
+          resource.data.remetente_id == request.auth.uid
+          || resource.data.destinatario_id == request.auth.uid
+        );
+      allow create: if acessaFazenda(request.resource.data.fazenda_id)
+        && request.resource.data.remetente_id == request.auth.uid;
+      allow update: if acessaFazenda(resource.data.fazenda_id)
+        && resource.data.destinatario_id == request.auth.uid
+        && mantemFazenda();
+      allow delete: if false;
+    }
+
+    // Somente leitura e limpeza durante a migracao para a estrutura nova.
+    match /configuracoes/{fazendaId} {
+      allow read: if acessaFazenda(fazendaId);
+      allow delete: if ehProprietario(fazendaId);
+      allow create, update: if false;
+
+      match /historico_precos/{periodoId} {
+        allow read: if acessaFazenda(fazendaId);
+        allow delete: if ehProprietario(fazendaId);
+        allow create, update: if false;
+      }
+    }
+
+    // Migracoes globais devem ser executadas pelo Admin SDK ou Console.
+    match /migracoes/{documento} {
+      allow read, write: if false;
+    }
+
+    match /{documento=**} {
+      allow read, write: if false;
+    }
+  }
+}

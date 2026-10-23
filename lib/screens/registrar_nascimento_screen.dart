@@ -12,7 +12,8 @@ class RegistrarNascimentoScreen extends StatefulWidget {
   const RegistrarNascimentoScreen({super.key, this.animalParaEditar});
 
   @override
-  State<RegistrarNascimentoScreen> createState() => _RegistrarNascimentoScreenState();
+  State<RegistrarNascimentoScreen> createState() =>
+      _RegistrarNascimentoScreenState();
 }
 
 class _RegistrarNascimentoScreenState extends State<RegistrarNascimentoScreen> {
@@ -54,93 +55,95 @@ class _RegistrarNascimentoScreenState extends State<RegistrarNascimentoScreen> {
       appBar: AppBar(
         title: Text(_isEdicao ? 'Editar Animal' : 'Registrar Nascimento'),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Ícone
-            Center(
-              child: Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: AppTheme.primarySurface,
-                  shape: BoxShape.circle,
+      body: SafeArea(
+        top: false,
+        minimum: const EdgeInsets.only(bottom: 16),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Ícone
+              Center(
+                child: Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primarySurface,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    _isEdicao ? Icons.edit : Icons.child_care,
+                    size: 40,
+                    color: AppTheme.primary,
+                  ),
                 ),
-                child: Icon(
-                  _isEdicao ? Icons.edit : Icons.child_care,
-                  size: 40,
-                  color: AppTheme.primary,
+              ),
+              const SizedBox(height: 24),
+              _buildLabel('Número do Brinco *'),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _numeroBrincoController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  hintText: 'Ex: 001',
+                  prefixIcon: Icon(Icons.tag),
                 ),
               ),
-            ),
-            const SizedBox(height: 24),
-            _buildLabel('Número do Brinco *'),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _numeroBrincoController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                hintText: 'Ex: 001',
-                prefixIcon: Icon(Icons.tag),
+              const SizedBox(height: 16),
+              _buildLabel('Nome do Bezerro *'),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _nomeController,
+                decoration: const InputDecoration(
+                  hintText: 'Ex: Mimosa',
+                  prefixIcon: Icon(Icons.pets),
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-            _buildLabel('Nome do Bezerro *'),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _nomeController,
-              decoration: const InputDecoration(
-                hintText: 'Ex: Mimosa',
-                prefixIcon: Icon(Icons.pets),
+              const SizedBox(height: 16),
+              _buildLabel('Sexo'),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                initialValue: _sexoSelecionado,
+                decoration: const InputDecoration(prefixIcon: Icon(Icons.wc)),
+                items: const [
+                  DropdownMenuItem(value: 'Fêmea', child: Text('Fêmea')),
+                  DropdownMenuItem(value: 'Macho', child: Text('Macho')),
+                ],
+                onChanged: (val) {
+                  if (val != null) setState(() => _sexoSelecionado = val);
+                },
               ),
-            ),
-            const SizedBox(height: 16),
-            _buildLabel('Sexo'),
-            const SizedBox(height: 8),
-            DropdownButtonFormField<String>(
-              initialValue: _sexoSelecionado,
-              decoration: const InputDecoration(
-                prefixIcon: Icon(Icons.wc),
+              const SizedBox(height: 16),
+              _buildLabel('Data de Nascimento *'),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _dataNascimentoController,
+                readOnly: true,
+                onTap: _selecionarData,
+                decoration: const InputDecoration(
+                  hintText: 'dd/mm/aaaa',
+                  prefixIcon: Icon(Icons.calendar_today),
+                ),
               ),
-              items: const [
-                DropdownMenuItem(value: 'Fêmea', child: Text('Fêmea')),
-                DropdownMenuItem(value: 'Macho', child: Text('Macho')),
-              ],
-              onChanged: (val) {
-                if (val != null) setState(() => _sexoSelecionado = val);
-              },
-            ),
-            const SizedBox(height: 16),
-            _buildLabel('Data de Nascimento *'),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _dataNascimentoController,
-              readOnly: true,
-              onTap: _selecionarData,
-              decoration: const InputDecoration(
-                hintText: 'dd/mm/aaaa',
-                prefixIcon: Icon(Icons.calendar_today),
+              const SizedBox(height: 16),
+              _buildLabel('Número da Mãe *'),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _numeroMaeController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  hintText: 'Ex: 050',
+                  prefixIcon: Icon(Icons.family_restroom),
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-            _buildLabel('Número da Mãe *'),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _numeroMaeController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                hintText: 'Ex: 050',
-                prefixIcon: Icon(Icons.family_restroom),
+              const SizedBox(height: 32),
+              LoadingButton(
+                text: _isEdicao ? 'Salvar Alterações' : 'Registrar Nascimento',
+                isLoading: _loading,
+                onPressed: _validarESalvar,
               ),
-            ),
-            const SizedBox(height: 32),
-            LoadingButton(
-              text: _isEdicao ? 'Salvar Alterações' : 'Registrar Nascimento',
-              isLoading: _loading,
-              onPressed: _validarESalvar,
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -246,7 +249,9 @@ class _RegistrarNascimentoScreenState extends State<RegistrarNascimentoScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(_isEdicao ? 'Dados atualizados!' : 'Nascimento registrado!'),
+          content: Text(
+            _isEdicao ? 'Dados atualizados!' : 'Nascimento registrado!',
+          ),
           backgroundColor: AppTheme.aprovada,
         ),
       );

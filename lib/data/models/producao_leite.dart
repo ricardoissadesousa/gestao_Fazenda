@@ -25,15 +25,28 @@ class ProducaoLeite {
     final data = doc.data() as Map<String, dynamic>? ?? {};
     return ProducaoLeite(
       id: doc.id,
-      data: (data['data'] as Timestamp?)?.toDate() ??
-          (data['data_registro'] as Timestamp?)?.toDate(),
-      dataFormatada: data['dataFormatada'] ?? '',
-      litrosManha: (data['litrosManha'] ?? 0.0).toDouble(),
-      litrosTarde: (data['litrosTarde'] ?? 0.0).toDouble(),
-      totalLitros: (data['total_litros'] ?? data['totalLitros'] ?? 0.0).toDouble(),
-      observacoes: data['observacoes'] ?? '',
-      fazendaId: data['fazenda_id'],
+      data: _comoData(data['data']) ?? _comoData(data['data_registro']),
+      dataFormatada: data['dataFormatada']?.toString() ?? '',
+      litrosManha: _comoDouble(data['litrosManha']),
+      litrosTarde: _comoDouble(data['litrosTarde']),
+      totalLitros: _comoDouble(data['total_litros'] ?? data['totalLitros']),
+      observacoes: data['observacoes']?.toString() ?? '',
+      fazendaId: data['fazenda_id']?.toString(),
     );
+  }
+
+  static double _comoDouble(Object? valor) {
+    if (valor is num) return valor.toDouble();
+    return double.tryParse(valor?.toString().replaceAll(',', '.') ?? '') ?? 0;
+  }
+
+  static DateTime? _comoData(Object? valor) {
+    if (valor is Timestamp) return valor.toDate();
+    if (valor is DateTime) return valor;
+    if (valor is num) {
+      return DateTime.fromMillisecondsSinceEpoch(valor.toInt());
+    }
+    return DateTime.tryParse(valor?.toString() ?? '');
   }
 
   Map<String, dynamic> toFirestore() {
@@ -71,8 +84,5 @@ class ConfiguracaoPreco {
   final String id;
   final double precoLeite;
 
-  ConfiguracaoPreco({
-    this.id = 'preco_atual',
-    this.precoLeite = 2.85,
-  });
+  ConfiguracaoPreco({this.id = 'preco_atual', this.precoLeite = 2.85});
 }

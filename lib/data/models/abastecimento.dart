@@ -9,7 +9,16 @@ class Abastecimento {
   final double horimetro;
   final String aplicacao;
   final String? usuarioUid;
-  final String? fotoComprovante; // Base64 da foto do comprovante
+
+  /// URL de download da foto salva no Firebase Storage.
+  final String? fotoComprovanteUrl;
+
+  /// Caminho do arquivo no Firebase Storage, usado para manutenção/exclusão.
+  final String? fotoComprovantePath;
+
+  /// Formato usado pelas versões antigas do app. Mantido para que os
+  /// comprovantes já cadastrados continuem aparecendo no histórico.
+  final String? fotoComprovanteBase64;
   final String? fazendaId;
 
   Abastecimento({
@@ -21,12 +30,24 @@ class Abastecimento {
     this.horimetro = 0.0,
     this.aplicacao = '',
     this.usuarioUid,
-    this.fotoComprovante,
+    this.fotoComprovanteUrl,
+    this.fotoComprovantePath,
+    this.fotoComprovanteBase64,
     this.fazendaId,
   });
 
+  bool get temFotoComprovante =>
+      (fotoComprovanteUrl?.isNotEmpty ?? false) ||
+      (fotoComprovantePath?.isNotEmpty ?? false) ||
+      (fotoComprovanteBase64?.isNotEmpty ?? false);
+
   factory Abastecimento.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>? ?? {};
+    final fotoLegada = data['foto_comprovante'] as String?;
+    final fotoLegadaEhUrl =
+        fotoLegada != null &&
+        (fotoLegada.startsWith('https://') || fotoLegada.startsWith('http://'));
+
     return Abastecimento(
       id: doc.id,
       data: (data['data'] as Timestamp?)?.toDate(),
@@ -36,21 +57,28 @@ class Abastecimento {
       horimetro: (data['horimetro'] ?? 0.0).toDouble(),
       aplicacao: data['aplicacao'] ?? '',
       usuarioUid: data['usuario_uid'],
-      fotoComprovante: data['foto_comprovante'],
+      fotoComprovanteUrl:
+          data['foto_comprovante_url'] as String? ??
+          (fotoLegadaEhUrl ? fotoLegada : null),
+      fotoComprovantePath: data['foto_comprovante_path'] as String?,
+      fotoComprovanteBase64: fotoLegadaEhUrl ? null : fotoLegada,
       fazendaId: data['fazenda_id'],
     );
   }
 
   Map<String, dynamic> toFirestore() {
     return {
-      'data': data != null ? Timestamp.fromDate(data!) : FieldValue.serverTimestamp(),
+      'data': data != null
+          ? Timestamp.fromDate(data!)
+          : FieldValue.serverTimestamp(),
       'motorista': motorista,
       'litros': litros,
       'equipamento': equipamento,
       'horimetro': horimetro,
       'aplicacao': aplicacao,
       'usuario_uid': usuarioUid,
-      'foto_comprovante': fotoComprovante,
+      'foto_comprovante_url': fotoComprovanteUrl,
+      'foto_comprovante_path': fotoComprovantePath,
       'fazenda_id': fazendaId,
     };
   }

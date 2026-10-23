@@ -1,0 +1,15 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Os comprovantes ficam separados por fazenda e abastecimento. O limite e
+    // o tipo evitam que arquivos arbitrários ou imagens enormes sejam enviados.
+    match /fazendas/{fazendaId}/abastecimentos/{abastecimentoId}/{arquivo} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null
+                            && request.resource.size < 10 * 1024 * 1024
+                            && request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null;
+    }
+  }
+}

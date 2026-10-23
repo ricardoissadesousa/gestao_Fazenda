@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../core/utils/app_error_messages.dart';
 import '../models/usuario.dart';
 import 'fazenda_service.dart';
 
@@ -7,7 +8,8 @@ class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  CollectionReference get _usuariosCollection => _firestore.collection('usuarios');
+  CollectionReference get _usuariosCollection =>
+      _firestore.collection('usuarios');
 
   /// Login com email e senha
   Future<Usuario> login(String email, String senha) async {
@@ -16,28 +18,53 @@ class AuthService {
       password: senha,
     );
     final uid = authResult.user?.uid;
-    if (uid == null) throw Exception('Usuário não encontrado');
+    if (uid == null) {
+      throw const UserMessageException(
+        'Não foi possível identificar sua conta. Tente entrar novamente.',
+      );
+    }
 
     final userDoc = await _usuariosCollection.doc(uid).get();
-    if (!userDoc.exists) throw Exception('Dados do usuário não encontrados');
+    if (!userDoc.exists) {
+      throw const UserMessageException(
+        'Seu cadastro está incompleto. Entre em contato com o responsável.',
+      );
+    }
 
     return Usuario.fromFirestore(userDoc);
   }
 
+  /// Envia o link oficial do Firebase para redefinicao de senha.
+  Future<void> enviarEmailRedefinicaoSenha(String email) async {
+    await _auth.setLanguageCode('pt-BR');
+    await _auth.sendPasswordResetEmail(email: email.trim());
+  }
+
   /// Registrar novo usuário
-  Future<Usuario> registrar(String email, String senha, String nome, String tipo) async {
+  Future<Usuario> registrar(
+    String email,
+    String senha,
+    String nome,
+    String tipo,
+  ) async {
     final authResult = await _auth.createUserWithEmailAndPassword(
       email: email,
       password: senha,
     );
     final uid = authResult.user?.uid;
-    if (uid == null) throw Exception('Erro ao criar usuário');
+    if (uid == null) {
+      throw const UserMessageException(
+        'Não foi possível criar a conta. Tente novamente.',
+      );
+    }
 
     final usuario = Usuario(
       id: uid,
       email: email,
       nome: nome,
-      tipo: tipo.toUpperCase() == 'GESTOR' ? TipoUsuario.GESTOR : TipoUsuario.FUNCIONARIO,
+      tipo: tipo.toUpperCase() == 'GESTOR'
+          ? TipoUsuario.GESTOR
+          : TipoUsuario.FUNCIONARIO,
     );
 
     await _usuariosCollection.doc(uid).set(usuario.toFirestore());
@@ -74,7 +101,9 @@ class AuthService {
     final fazendaService = FazendaService();
     final fazenda = await fazendaService.buscarPorCodigo(codigo);
     if (fazenda == null) {
-      throw Exception('Código inválido. Nenhuma fazenda encontrada com este código.');
+      throw const UserMessageException(
+        'Código inválido. Nenhuma fazenda encontrada com este código.',
+      );
     }
 
     // Verificar se já está vinculado a esta fazenda
@@ -83,7 +112,9 @@ class AuthService {
       final data = userDoc.data() as Map<String, dynamic>? ?? {};
       final fazendasExistentes = List<String>.from(data['fazendas_ids'] ?? []);
       if (fazendasExistentes.contains(fazenda.id)) {
-        throw Exception('Você já está vinculado a esta fazenda.');
+        throw const UserMessageException(
+          'Você já está vinculado a esta fazenda.',
+        );
       }
     }
 

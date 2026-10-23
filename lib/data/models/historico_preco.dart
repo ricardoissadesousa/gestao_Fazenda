@@ -24,11 +24,27 @@ class HistoricoPreco {
     final data = doc.data() as Map<String, dynamic>? ?? {};
     return HistoricoPreco(
       id: doc.id,
-      preco: (data['preco'] ?? 0.0).toDouble(),
-      mes: data['mes'] ?? 1,
-      ano: data['ano'] ?? 2026,
-      dataAtualizacao: (data['data_atualizacao'] as Timestamp?)?.toDate(),
+      preco: _comoDouble(data['preco']),
+      mes: _comoInt(data['mes'], padrao: 1),
+      ano: _comoInt(data['ano'], padrao: 2026),
+      dataAtualizacao: _comoData(data['data_atualizacao']),
     );
+  }
+
+  static double _comoDouble(Object? valor) {
+    if (valor is num) return valor.toDouble();
+    return double.tryParse(valor?.toString().replaceAll(',', '.') ?? '') ?? 0;
+  }
+
+  static int _comoInt(Object? valor, {required int padrao}) {
+    if (valor is num) return valor.toInt();
+    return int.tryParse(valor?.toString() ?? '') ?? padrao;
+  }
+
+  static DateTime? _comoData(Object? valor) {
+    if (valor is Timestamp) return valor.toDate();
+    if (valor is DateTime) return valor;
+    return DateTime.tryParse(valor?.toString() ?? '');
   }
 
   Map<String, dynamic> toFirestore() {
@@ -47,7 +63,7 @@ class HistoricoPreco {
     DateTime? dataAtualizacao,
   }) {
     return HistoricoPreco(
-      id: this.id,
+      id: id,
       preco: preco ?? this.preco,
       mes: mes ?? this.mes,
       ano: ano ?? this.ano,

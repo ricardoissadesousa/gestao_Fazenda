@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/utils/app_error_messages.dart';
 import '../data/models/usuario.dart';
 import '../data/services/auth_service.dart';
 
@@ -41,13 +42,22 @@ class AuthProvider extends ChangeNotifier {
       }
     } catch (e) {
       _estado = EstadoLogin.erro;
-      _mensagemErro = e.toString().replaceAll('Exception: ', '');
+      _mensagemErro = AppErrorMessages.auth(e, AuthOperation.login);
     }
     notifyListeners();
   }
 
+  Future<void> enviarEmailRedefinicaoSenha(String email) {
+    return _authService.enviarEmailRedefinicaoSenha(email);
+  }
+
   /// Registrar
-  Future<void> registrar(String email, String senha, String nome, String tipo) async {
+  Future<void> registrar(
+    String email,
+    String senha,
+    String nome,
+    String tipo,
+  ) async {
     if (email.trim().isEmpty || senha.trim().isEmpty || nome.trim().isEmpty) {
       _estado = EstadoLogin.erro;
       _mensagemErro = 'Preencha todos os campos';
@@ -68,7 +78,7 @@ class AuthProvider extends ChangeNotifier {
       _estado = EstadoLogin.sucesso;
     } catch (e) {
       _estado = EstadoLogin.erro;
-      _mensagemErro = e.toString().replaceAll('Exception: ', '');
+      _mensagemErro = AppErrorMessages.auth(e, AuthOperation.cadastro);
     }
     notifyListeners();
   }
